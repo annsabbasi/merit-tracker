@@ -1,0 +1,173 @@
+"use client"
+
+import type React from "react"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { useAuth } from "@/lib/auth-context"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { Loader2, Building2, User, AlertCircle } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+
+export default function LoginPage() {
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [loginType, setLoginType] = useState<"company" | "user">("company")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [companyCode, setCompanyCode] = useState("")
+  const { login } = useAuth()
+  const router = useRouter()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    setIsLoading(true)
+
+    try {
+      const success = await login(email, password, loginType === "user" ? companyCode : undefined)
+      if (success) {
+        router.push("/dashboard")
+      } else {
+        setError("Invalid credentials. Please try again.")
+      }
+    } catch {
+      setError("An error occurred. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      <header className="flex items-center justify-between p-4 border-b border-border">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+            <span className="text-primary-foreground font-bold text-sm">WF</span>
+          </div>
+          <span className="font-semibold text-foreground">WorkFlow Pro</span>
+        </div>
+        <ThemeToggle />
+      </header>
+
+      <main className="flex-1 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+            <CardDescription>Sign in to your account to continue</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={loginType} onValueChange={(v) => setLoginType(v as "company" | "user")}>
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="company" className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  Company
+                </TabsTrigger>
+                <TabsTrigger value="user" className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  User
+                </TabsTrigger>
+              </TabsList>
+
+              <form onSubmit={handleSubmit}>
+                {error && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                <TabsContent value="company" className="space-y-4 mt-0">
+                  <div className="space-y-2">
+                    <Label htmlFor="company-email">Email</Label>
+                    <Input
+                      id="company-email"
+                      type="email"
+                      placeholder="company@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company-password">Password</Label>
+                    <Input
+                      id="company-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="user" className="space-y-4 mt-0">
+                  <div className="space-y-2">
+                    <Label htmlFor="user-company-code">Company Code</Label>
+                    <Input
+                      id="user-company-code"
+                      placeholder="Enter your company code"
+                      value={companyCode}
+                      onChange={(e) => setCompanyCode(e.target.value)}
+                      required={loginType === "user"}
+                    />
+                    <p className="text-xs text-muted-foreground">Ask your company admin for the company code</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="user-email">Email</Label>
+                    <Input
+                      id="user-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="user-password">Password</Label>
+                    <Input
+                      id="user-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                </TabsContent>
+
+                <Button type="submit" className="w-full mt-6" disabled={isLoading}>
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Sign In
+                </Button>
+              </form>
+            </Tabs>
+
+            <div className="mt-6 text-center text-sm">
+              <span className="text-muted-foreground">Don't have an account? </span>
+              <Link href="/register" className="text-primary hover:underline font-medium">
+                Sign up
+              </Link>
+            </div>
+
+            <div className="mt-4 p-3 rounded-lg bg-muted text-xs text-muted-foreground">
+              <p className="font-medium mb-1">Demo Credentials:</p>
+              <p>Company: john@techflow.com</p>
+              <p>QC Admin: sarah@techflow.com</p>
+              <p>User: mike@techflow.com</p>
+              <p className="mt-1">Password: any (demo mode)</p>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  )
+}
