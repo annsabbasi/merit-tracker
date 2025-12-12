@@ -1,47 +1,38 @@
+// src/app/auth/login/page.tsx
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { useAuth } from "@/lib/auth-context"
+import { useLogin } from "@/lib/hooks"
+import { getErrorMessage } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Loader2, Building2, User, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function LoginPage() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
   const [loginType, setLoginType] = useState<"company" | "user">("company")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [companyCode, setCompanyCode] = useState("")
-  const { login } = useAuth()
-  const router = useRouter()
+  const [rememberMe, setRememberMe] = useState(false)
+
+  const loginMutation = useLogin()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
-    setIsLoading(true)
 
-    try {
-      const success = await login(email, password, loginType === "user" ? companyCode : undefined)
-      if (success) {
-        router.push("/dashboard")
-      } else {
-        setError("Invalid credentials. Please try again.")
-      }
-    } catch {
-      setError("An error occurred. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
+    loginMutation.mutate({
+      email,
+      password,
+      rememberMe,
+    })
   }
 
   return (
@@ -76,10 +67,12 @@ export default function LoginPage() {
               </TabsList>
 
               <form onSubmit={handleSubmit}>
-                {error && (
+                {loginMutation.isError && (
                   <Alert variant="destructive" className="mb-4">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{error}</AlertDescription>
+                    <AlertDescription>
+                      {getErrorMessage(loginMutation.error)}
+                    </AlertDescription>
                   </Alert>
                 )}
 
@@ -92,6 +85,7 @@ export default function LoginPage() {
                       placeholder="company@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      disabled={loginMutation.isPending}
                       required
                     />
                   </div>
@@ -103,6 +97,7 @@ export default function LoginPage() {
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      disabled={loginMutation.isPending}
                       required
                     />
                   </div>
@@ -116,6 +111,7 @@ export default function LoginPage() {
                       placeholder="Enter your company code"
                       value={companyCode}
                       onChange={(e) => setCompanyCode(e.target.value)}
+                      disabled={loginMutation.isPending}
                       required={loginType === "user"}
                     />
                     <p className="text-xs text-muted-foreground">Ask your company admin for the company code</p>
@@ -128,6 +124,7 @@ export default function LoginPage() {
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      disabled={loginMutation.isPending}
                       required
                     />
                   </div>
@@ -139,31 +136,39 @@ export default function LoginPage() {
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      disabled={loginMutation.isPending}
                       required
                     />
                   </div>
                 </TabsContent>
 
-                <Button type="submit" className="w-full mt-6" disabled={isLoading}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <div className="flex items-center space-x-2 mt-4">
+                  <Checkbox
+                    id="remember-me"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                    disabled={loginMutation.isPending}
+                  />
+                  <Label
+                    htmlFor="remember-me"
+                    className="text-sm font-normal cursor-pointer"
+                  >
+                    Remember me
+                  </Label>
+                </div>
+
+                <Button type="submit" className="w-full mt-6" disabled={loginMutation.isPending}>
+                  {loginMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Sign In
                 </Button>
               </form>
             </Tabs>
 
             <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">Don't have an account? </span>
+              <span className="text-muted-foreground">Don&apos;t have an account? </span>
               <Link href="/register" className="text-primary hover:underline font-medium">
                 Sign up
               </Link>
-            </div>
-
-            <div className="mt-4 p-3 rounded-lg bg-muted text-xs text-muted-foreground">
-              <p className="font-medium mb-1">Demo Credentials:</p>
-              <p>Company: john@techflow.com</p>
-              <p>QC Admin: sarah@techflow.com</p>
-              <p>User: mike@techflow.com</p>
-              <p className="mt-1">Password: any (demo mode)</p>
             </div>
           </CardContent>
         </Card>
@@ -171,3 +176,4 @@ export default function LoginPage() {
     </div>
   )
 }
+

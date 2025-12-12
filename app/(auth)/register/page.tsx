@@ -1,11 +1,11 @@
+// src/app/auth/register/page.tsx
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { useAuth } from "@/lib/auth-context"
+import { useRegisterCompany, useRegisterUser } from "@/lib/hooks"
+import { getErrorMessage } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,24 +16,30 @@ import { Loader2, Building2, User, AlertCircle, Sparkles } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function RegisterPage() {
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [registerType, setRegisterType] = useState<"company" | "user">("company")
   const [formData, setFormData] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     password: "",
     confirmPassword: "",
     companyName: "",
     companyCode: "",
+    phone: "",
   })
-  const { register } = useAuth()
-  const router = useRouter()
+
+  const registerCompanyMutation = useRegisterCompany()
+  const registerUserMutation = useRegisterUser()
+
+  const isLoading = registerCompanyMutation.isPending || registerUserMutation.isPending
+  const mutationError = registerCompanyMutation.error || registerUserMutation.error
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
 
+    // Validation
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match")
       return
@@ -44,33 +50,42 @@ export default function RegisterPage() {
       return
     }
 
-    setIsLoading(true)
-
-    try {
-      const success = await register({
-        type: registerType,
+    if (registerType === "company") {
+      // Register company with admin
+      registerCompanyMutation.mutate({
+        companyName: formData.companyName,
         email: formData.email,
         password: formData.password,
-        name: formData.name,
-        companyName: formData.companyName,
-        companyCode: formData.companyCode,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: formData.phone || undefined,
       })
-
-      if (success) {
-        router.push("/dashboard")
-      } else {
-        setError("Registration failed. Please try again.")
-      }
-    } catch {
-      setError("An error occurred. Please try again.")
-    } finally {
-      setIsLoading(false)
+    } else {
+      // Register user to existing company
+      registerUserMutation.mutate({
+        email: formData.email,
+        password: formData.password,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        companyCode: formData.companyCode,
+        phone: formData.phone || undefined,
+      })
     }
   }
 
   const updateForm = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
+
+  // Split name into first and last
+  const handleNameChange = (fullName: string) => {
+    const parts = fullName.trim().split(" ")
+    const firstName = parts[0] || ""
+    const lastName = parts.slice(1).join(" ") || ""
+    setFormData((prev) => ({ ...prev, firstName, lastName }))
+  }
+
+  const fullName = `${formData.firstName} ${formData.lastName}`.trim()
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -104,10 +119,12 @@ export default function RegisterPage() {
               </TabsList>
 
               <form onSubmit={handleSubmit}>
-                {error && (
+                {(error || mutationError) && (
                   <Alert variant="destructive" className="mb-4">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{error}</AlertDescription>
+                    <AlertDescription>
+                      {error || getErrorMessage(mutationError)}
+                    </AlertDescription>
                   </Alert>
                 )}
 
@@ -124,18 +141,33 @@ export default function RegisterPage() {
                       placeholder="Acme Inc."
                       value={formData.companyName}
                       onChange={(e) => updateForm("companyName", e.target.value)}
+                      disabled={isLoading}
                       required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="admin-name">Your Name</Label>
-                    <Input
-                      id="admin-name"
-                      placeholder="John Doe"
-                      value={formData.name}
-                      onChange={(e) => updateForm("name", e.target.value)}
-                      required
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="admin-first-name">First Name</Label>
+                      <Input
+                        id="admin-first-name"
+                        placeholder="John"
+                        value={formData.firstName}
+                        onChange={(e) => updateForm("firstName", e.target.value)}
+                        disabled={isLoading}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="admin-last-name">Last Name</Label>
+                      <Input
+                        id="admin-last-name"
+                        placeholder="Doe"
+                        value={formData.lastName}
+                        onChange={(e) => updateForm("lastName", e.target.value)}
+                        disabled={isLoading}
+                        required
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="company-email-reg">Email</Label>
@@ -145,7 +177,19 @@ export default function RegisterPage() {
                       placeholder="admin@company.com"
                       value={formData.email}
                       onChange={(e) => updateForm("email", e.target.value)}
+                      disabled={isLoading}
                       required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="company-phone">Phone (Optional)</Label>
+                    <Input
+                      id="company-phone"
+                      type="tel"
+                      placeholder="+1 234 567 8900"
+                      value={formData.phone}
+                      onChange={(e) => updateForm("phone", e.target.value)}
+                      disabled={isLoading}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -157,6 +201,7 @@ export default function RegisterPage() {
                         placeholder="••••••••"
                         value={formData.password}
                         onChange={(e) => updateForm("password", e.target.value)}
+                        disabled={isLoading}
                         required
                       />
                     </div>
@@ -168,6 +213,7 @@ export default function RegisterPage() {
                         placeholder="••••••••"
                         value={formData.confirmPassword}
                         onChange={(e) => updateForm("confirmPassword", e.target.value)}
+                        disabled={isLoading}
                         required
                       />
                     </div>
@@ -182,19 +228,34 @@ export default function RegisterPage() {
                       placeholder="Enter company code"
                       value={formData.companyCode}
                       onChange={(e) => updateForm("companyCode", e.target.value)}
+                      disabled={isLoading}
                       required={registerType === "user"}
                     />
                     <p className="text-xs text-muted-foreground">Get this code from your company administrator</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="user-name">Your Name</Label>
-                    <Input
-                      id="user-name"
-                      placeholder="John Doe"
-                      value={formData.name}
-                      onChange={(e) => updateForm("name", e.target.value)}
-                      required
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="user-first-name">First Name</Label>
+                      <Input
+                        id="user-first-name"
+                        placeholder="John"
+                        value={formData.firstName}
+                        onChange={(e) => updateForm("firstName", e.target.value)}
+                        disabled={isLoading}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="user-last-name">Last Name</Label>
+                      <Input
+                        id="user-last-name"
+                        placeholder="Doe"
+                        value={formData.lastName}
+                        onChange={(e) => updateForm("lastName", e.target.value)}
+                        disabled={isLoading}
+                        required
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="user-email-reg">Email</Label>
@@ -204,7 +265,19 @@ export default function RegisterPage() {
                       placeholder="you@example.com"
                       value={formData.email}
                       onChange={(e) => updateForm("email", e.target.value)}
+                      disabled={isLoading}
                       required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="user-phone">Phone (Optional)</Label>
+                    <Input
+                      id="user-phone"
+                      type="tel"
+                      placeholder="+1 234 567 8900"
+                      value={formData.phone}
+                      onChange={(e) => updateForm("phone", e.target.value)}
+                      disabled={isLoading}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -216,6 +289,7 @@ export default function RegisterPage() {
                         placeholder="••••••••"
                         value={formData.password}
                         onChange={(e) => updateForm("password", e.target.value)}
+                        disabled={isLoading}
                         required
                       />
                     </div>
@@ -227,6 +301,7 @@ export default function RegisterPage() {
                         placeholder="••••••••"
                         value={formData.confirmPassword}
                         onChange={(e) => updateForm("confirmPassword", e.target.value)}
+                        disabled={isLoading}
                         required
                       />
                     </div>
@@ -242,7 +317,7 @@ export default function RegisterPage() {
 
             <div className="mt-6 text-center text-sm">
               <span className="text-muted-foreground">Already have an account? </span>
-              <Link href="/login" className="text-primary hover:underline font-medium">
+              <Link href="/auth/login" className="text-primary hover:underline font-medium">
                 Sign in
               </Link>
             </div>

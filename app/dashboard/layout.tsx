@@ -1,33 +1,40 @@
+// src/app/dashboard/layout.tsx
 "use client"
 
 import type React from "react"
-
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth-context"
+import { useAuthStore } from "@/lib/stores"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { Loader2 } from "lucide-react"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth()
   const router = useRouter()
+  const { isAuthenticated, token, user } = useAuthStore()
+  const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      router.push("/login")
-    }
-  }, [user, isLoading, router])
+    // Check if token exists in storage
+    const storedToken =
+      typeof window !== 'undefined'
+        ? localStorage.getItem('authToken') || sessionStorage.getItem('authToken')
+        : null
 
-  if (isLoading) {
+    const hasAuth = isAuthenticated || !!storedToken || !!token
+
+    if (!hasAuth) {
+      router.push("/auth/login")
+    } else {
+      setIsChecking(false)
+    }
+  }, [isAuthenticated, token, router])
+
+  if (isChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
-  }
-
-  if (!user) {
-    return null
   }
 
   return (
