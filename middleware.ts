@@ -14,10 +14,10 @@ const publicRoutes = [
 
 // Routes that should redirect to dashboard if authenticated
 const authRoutes = [
-    '/auth/login',
-    '/auth/register',
-    '/auth/register/company',
-    '/auth/register/user',
+    '/login',
+    '/register',
+    '/register/company',
+    '/register/user',
 ];
 
 export function middleware(request: NextRequest) {

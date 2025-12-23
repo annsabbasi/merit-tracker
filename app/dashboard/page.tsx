@@ -217,12 +217,12 @@ export default function DashboardPage() {
                 <div key={performer.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                   <span
                     className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${index === 0
-                        ? "bg-chart-3 text-white"
-                        : index === 1
-                          ? "bg-muted-foreground/30 text-foreground"
-                          : index === 2
-                            ? "bg-chart-3/50 text-foreground"
-                            : "bg-muted text-muted-foreground"
+                      ? "bg-chart-3 text-white"
+                      : index === 1
+                        ? "bg-muted-foreground/30 text-foreground"
+                        : index === 2
+                          ? "bg-chart-3/50 text-foreground"
+                          : "bg-muted text-muted-foreground"
                       }`}
                   >
                     {index + 1}
@@ -309,10 +309,10 @@ export default function DashboardPage() {
                 <div key={sop.id} className="flex items-center gap-3">
                   <div
                     className={`p-1.5 rounded ${sop.status === "APPROVED"
-                        ? "bg-chart-2/10"
-                        : sop.status === "PENDING_APPROVAL"
-                          ? "bg-chart-3/10"
-                          : "bg-destructive/10"
+                      ? "bg-chart-2/10"
+                      : sop.status === "PENDING_APPROVAL"
+                        ? "bg-chart-3/10"
+                        : "bg-destructive/10"
                       }`}
                   >
                     {sop.status === "APPROVED" ? (
