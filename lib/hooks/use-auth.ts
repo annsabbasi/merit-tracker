@@ -20,7 +20,7 @@ export function useLogin() {
 
     return useMutation({
         mutationFn: (data: LoginRequest & { rememberMe?: boolean }) =>
-            api.post<AuthResponse>('/auth/login', { email: data.email, password: data.password }),
+            api.post<AuthResponse>('/login', { email: data.email, password: data.password }),
         onSuccess: (res, variables) => {
             login(res.access_token, res.user, res.company, res.subscription, variables.rememberMe);
             queryClient.clear();
@@ -115,7 +115,7 @@ export function useLogout() {
         logout: () => {
             logout();
             queryClient.clear();
-            router.push('/auth/login');
+            router.push('/login');
         },
     };
 }

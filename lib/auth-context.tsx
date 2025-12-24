@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import type { User, Company, UserRole } from "./types"
+import type { User, Company, UserRole } from "./types/index"
 import { mockUsers, mockCompany } from "./mock-data"
 
 interface AuthContextType {
@@ -15,7 +15,7 @@ interface AuthContextType {
 }
 
 interface RegisterData {
-  type: "company" | "user"
+  type: "COMPANY" | "USER"
   email: string
   password: string
   name: string
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
-    if (data.type === "company") {
+    if (data.type === "COMPANY") {
       const newCompany: Company = {
         id: `comp_${Date.now()}`,
         name: data.companyName || "New Company",
@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: `user_${Date.now()}`,
         email: data.email,
         name: data.name,
-        role: "company",
+        role: "COMPANY",
         companyId: newCompany.id,
         joinDate: new Date().toISOString().split("T")[0],
         points: 0,
@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: `user_${Date.now()}`,
         email: data.email,
         name: data.name,
-        role: "user",
+        role: "USER",
         companyId: "comp_1",
         joinDate: new Date().toISOString().split("T")[0],
         points: 0,
@@ -121,9 +121,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasPermission = (requiredRole: UserRole | UserRole[]): boolean => {
     if (!user) return false
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole]
-    if (user.role === "company") return true
-    if (user.role === "qc_admin" && roles.includes("qc_admin")) return true
-    if (roles.includes("user")) return true
+    if (user.role === "COMPANY") return true
+    if (user.role === "QC_ADMIN" && roles.includes("QC_ADMIN")) return true
+    if (roles.includes("USER")) return true
     return roles.includes(user.role)
   }
 

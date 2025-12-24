@@ -4,12 +4,12 @@ import type { NextRequest } from 'next/server';
 
 // Routes that don't require authentication
 const publicRoutes = [
-    '/auth/login',
-    '/auth/register',
-    '/auth/register/company',
-    '/auth/register/user',
-    '/auth/forgot-password',
-    '/auth/reset-password',
+    '/login',
+    '/register',
+    '/register/company',
+    '/register/user',
+    '/forgot-password',
+    '/reset-password',
 ];
 
 // Routes that should redirect to dashboard if authenticated
@@ -51,7 +51,7 @@ export function middleware(request: NextRequest) {
         if (authToken) {
             return NextResponse.redirect(new URL('/dashboard', request.url));
         }
-        return NextResponse.redirect(new URL('/auth/login', request.url));
+        return NextResponse.redirect(new URL('/login', request.url));
     }
 
     return NextResponse.next();

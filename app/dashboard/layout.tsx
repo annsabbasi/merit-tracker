@@ -23,7 +23,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const hasAuth = isAuthenticated || !!storedToken || !!token
 
     if (!hasAuth) {
-      router.push("/auth/login")
+      router.push("/login")
     } else {
       setIsChecking(false)
     }

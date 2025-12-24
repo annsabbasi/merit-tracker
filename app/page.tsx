@@ -22,7 +22,7 @@ export default function Home() {
     if (hasAuth) {
       router.push("/dashboard")
     } else {
-      router.push("/auth/login")
+      router.push("/login")
     }
   }, [isAuthenticated, token, router])
 

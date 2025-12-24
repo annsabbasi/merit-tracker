@@ -6,19 +6,19 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth-store';
 
 const publicRoutes = [
-    '/auth/login',
-    '/auth/register',
-    '/auth/register/company',
-    '/auth/register/user',
-    '/auth/forgot-password',
-    '/auth/reset-password',
+    '/login',
+    '/register',
+    '/register/company',
+    '/register/user',
+    '/forgot-password',
+    '/reset-password',
 ];
 
 const authRoutes = [
-    '/auth/login',
-    '/auth/register',
-    '/auth/register/company',
-    '/auth/register/user',
+    '/login',
+    '/register',
+    '/register/company',
+    '/register/user',
 ];
 
 interface AuthGuardProps {
@@ -47,7 +47,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
         // If on protected route and not authenticated, redirect to login
         if (!isPublicRoute && !hasAuth) {
-            router.replace('/auth/login');
+            router.replace('/login');
             return;
         }
     }, [isAuthenticated, token, pathname, router]);

@@ -1,7 +1,7 @@
 // src/lib/types/index.ts
 
 // ============== ENUMS ==============
-export type UserRole = 'USER' | 'QC_ADMIN' | 'COMPANY_ADMIN';
+export type UserRole = 'USER' | 'QC_ADMIN' | 'COMPANY';
 export type SubscriptionStatus = 'TRIAL' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
 export type ProjectStatus = 'PLANNING' | 'IN_PROGRESS' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
 export type ProjectMemberRole = 'MEMBER' | 'QC_ADMIN' | 'LEAD';
@@ -25,7 +25,8 @@ export interface Company {
     subscriptionEndsAt?: string;
     isActive: boolean;
     createdAt: string;
-    updatedAt: string;
+    updatedAt?: string;
+    plan: any
 }
 
 export interface User {
@@ -294,3 +295,45 @@ export interface ApiError {
 }
 
 
+// ADD THIS TO YOUR src/lib/types/index.ts
+
+// Activity Type enum
+export type ActivityType =
+    | 'USER_LOGIN'
+    | 'USER_LOGOUT'
+    | 'PROJECT_CREATED'
+    | 'PROJECT_UPDATED'
+    | 'SOP_CREATED'
+    | 'SOP_APPROVED'
+    | 'TIME_TRACKING_START'
+    | 'TIME_TRACKING_END'
+    | 'DEPARTMENT_CREATED'
+    | 'USER_ROLE_CHANGED';
+
+// Activity Log interface
+export interface ActivityLog {
+    id: string;
+    companyId: string;
+    userId?: string | null;
+    activityType: ActivityType;
+    description: string;
+    metadata?: Record<string, any> | null;
+    ipAddress?: string | null;
+    createdAt: string;
+    user?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        avatar?: string | null;
+    } | null;
+}
+
+export interface ActivityLogStats {
+    byType: Array<{ type: ActivityType; count: number }>;
+    topUsers: Array<{
+        user: { id: string; firstName: string; lastName: string } | null;
+        activityCount: number;
+    }>;
+    last24Hours: number;
+}
