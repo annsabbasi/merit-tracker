@@ -8,7 +8,7 @@ export type ProjectMemberRole = 'MEMBER' | 'QC_ADMIN' | 'LEAD';
 export type SubProjectStatus = 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED';
 export type SopType = 'VIDEO' | 'DOCUMENT' | 'PDF' | 'LINK' | 'IMAGE';
 export type SopStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
-export type NotificationType = 'PROJECT_ASSIGNMENT' | 'TASK_ASSIGNMENT' | 'SOP_APPROVAL' | 'SOP_REJECTION' | 'CHAT_MESSAGE' | 'DEPARTMENT_ASSIGNMENT' | 'ROLE_CHANGE' | 'SYSTEM';
+// export type NotificationType = 'PROJECT_ASSIGNMENT' | 'TASK_ASSIGNMENT' | 'SOP_APPROVAL' | 'SOP_REJECTION' | 'CHAT_MESSAGE' | 'DEPARTMENT_ASSIGNMENT' | 'ROLE_CHANGE' | 'SYSTEM';
 export type ActivityType = 'USER_LOGIN' | 'USER_LOGOUT' | 'PROJECT_CREATED' | 'PROJECT_UPDATED' | 'SOP_CREATED' | 'SOP_APPROVED' | 'TIME_TRACKING_START' | 'TIME_TRACKING_END' | 'DEPARTMENT_CREATED' | 'USER_ROLE_CHANGED';
 
 // ============== ENTITIES ==============
@@ -336,4 +336,117 @@ export interface ActivityLogStats {
         activityCount: number;
     }>;
     last24Hours: number;
+}
+
+
+
+// ADD/UPDATE THESE IN YOUR src/lib/types/index.ts
+
+// Notification Type enum (from Prisma schema)
+export type NotificationType =
+    | 'PROJECT_ASSIGNMENT'
+    | 'TASK_ASSIGNMENT'
+    | 'SOP_APPROVAL'
+    | 'SOP_REJECTION'
+    | 'CHAT_MESSAGE'
+    | 'DEPARTMENT_ASSIGNMENT'
+    | 'ROLE_CHANGE'
+    | 'SYSTEM';
+
+// Notification interface (matches Prisma model)
+export interface Notification {
+    id: string;
+    userId: string;
+    type: NotificationType;
+    title: string;
+    message: string;
+    metadata?: Record<string, any> | null;
+    isRead: boolean;
+    createdAt: string;
+    // Optional: populated user relation
+    user?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        avatar?: string | null;
+    };
+}
+
+
+// ADD/UPDATE THESE IN YOUR src/lib/types/index.ts
+
+// Department Project Junction
+export interface DepartmentProject {
+    id: string;
+    departmentId: string;
+    projectId: string;
+    assignedAt: string;
+    assignedById?: string;
+    project?: Project;
+    assignedBy?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+    };
+}
+
+// Department interface (enhanced)
+export interface Department {
+    id: string;
+    name: string;
+    description?: string | null;
+    tag?: string | null;
+    companyId: string;
+    leadId?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    lead?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        avatar?: string | null;
+        role: UserRole;
+        phone?: string | null;
+        points?: number;
+    } | null;
+    users?: Array<{
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        avatar?: string | null;
+        role: UserRole;
+        points?: number;
+        isActive: boolean;
+        createdAt?: string;
+    }>;
+    projects?: DepartmentProject[];
+    _count?: {
+        users: number;
+        projects: number;
+    };
+}
+
+// Department Stats interface
+export interface DepartmentStats {
+    totalMembers: number;
+    activeMembers: number;
+    totalProjects: number;
+    totalTasks: number;
+    completedTasks: number;
+    inProgressTasks: number;
+    todoTasks: number;
+    completionRate: number;
+    totalTimeHours: number;
+    totalPoints: number;
+    avgPointsPerMember: number;
+}
+
+// Department with Stats (used in list and detail views)
+export interface DepartmentWithStats extends Department {
+    stats: DepartmentStats;
 }

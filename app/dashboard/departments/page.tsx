@@ -2,18 +2,21 @@
 "use client"
 
 import { useState } from "react"
-import { useAuth } from "@/lib/auth-context"
+import Link from "next/link"
+import { useAuthStore } from "@/lib/stores/auth-store"
 import {
   useDepartments,
   useCreateDepartment,
   useDeleteDepartment,
-  useAssignUsersToDepartment
 } from "@/lib/hooks/use-departments"
-import { useUpdateUser, useUsers } from "@/lib/hooks/use-users"
+import { useUsers } from "@/lib/hooks/use-users"
+import { useProjects } from "@/lib/hooks/use-projects"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Dialog,
@@ -23,9 +26,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
-import { Search, Filter, UserPlus, Crown, Mail, Phone, Calendar, MoreHorizontal, Building2, Loader2 } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,461 +43,628 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import Link from "next/link"
-import { toast } from "sonner" // Assuming you use sonner or similar for notifications
-import { useForm } from "react-hook-form"
-import type { User, Department } from "@/lib/types/index"
-import { useAuthStore } from "@/lib/stores/auth-store"
-
-interface CreateDepartmentForm {
-  name: string
-  description?: string
-  tag?: string
-  leadId?: string
-}
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Search,
+  Plus,
+  Building2,
+  Users,
+  FolderKanban,
+  Clock,
+  Trophy,
+  Crown,
+  MoreVertical,
+  Edit,
+  Trash2,
+  Eye,
+  TrendingUp,
+  CheckCircle2,
+  Loader2,
+  Target,
+  BarChart3,
+} from "lucide-react"
+import { toast } from "sonner"
+import type { DepartmentWithStats } from "@/lib/hooks/use-departments"
 
 export default function DepartmentsPage() {
-  const { user: currentUser } = useAuthStore()
-  const { hasPermission } = useAuth()
+  const { user } = useAuthStore()
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedDepartment, setSelectedDepartment] = useState<string>("all")
-  const [isAddDeptOpen, setIsAddDeptOpen] = useState(false)
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [selectedDepartment, setSelectedDepartment] = useState<DepartmentWithStats | null>(null)
 
-  // Use the hooks
-  const { data: departments, isLoading: departmentsLoading, error: departmentsError } = useDepartments()
-  const { data: users, isLoading: usersLoading } = useUsers()
+  // Form state
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    tag: "#2563eb",
+    leadId: "",
+    startDate: "",
+    endDate: "",
+    memberIds: [] as string[],
+    projectIds: [] as string[],
+  })
+
+  // Check permissions - only COMPANY_ADMIN can manage departments
+  const isCompanyAdmin = user?.role === "COMPANY_ADMIN"
+
+  // Fetch data
+  const { data: departments, isLoading: departmentsLoading } = useDepartments({
+    search: searchQuery || undefined,
+  })
+  const { data: users } = useUsers()
+  const { data: projects } = useProjects()
+
+  // Mutations
   const createDepartment = useCreateDepartment()
   const deleteDepartment = useDeleteDepartment()
-  const assignUsers = useAssignUsersToDepartment()
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateDepartmentForm>()
+  // Filter departments based on search
+  const filteredDepartments = departments?.filter(dept =>
+    dept.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    dept.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || []
 
-  const handleCreateDepartment = async (data: CreateDepartmentForm) => {
+  // Handlers
+  const handleCreateDepartment = async () => {
+    if (!formData.name.trim()) {
+      toast.error("Department name is required")
+      return
+    }
+
     try {
-      await createDepartment.mutateAsync(data)
-      toast.success("Department created successfully")
-      setIsAddDeptOpen(false)
-      reset()
+      await createDepartment.mutateAsync({
+        name: formData.name,
+        description: formData.description || undefined,
+        tag: formData.tag || undefined,
+        leadId: formData.leadId || undefined,
+        startDate: formData.startDate || undefined,
+        endDate: formData.endDate || undefined,
+        memberIds: formData.memberIds.length > 0 ? formData.memberIds : undefined,
+        projectIds: formData.projectIds.length > 0 ? formData.projectIds : undefined,
+      })
+      toast.success("Department created successfully!")
+      setIsCreateOpen(false)
+      resetForm()
     } catch (error) {
       toast.error("Failed to create department")
     }
   }
 
-  const handleDeleteDepartment = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this department?")) return
+  const handleDeleteDepartment = async () => {
+    if (!selectedDepartment) return
 
     try {
-      await deleteDepartment.mutateAsync(id)
-      toast.success("Department deleted successfully")
+      await deleteDepartment.mutateAsync(selectedDepartment.id)
+      toast.success("Department deleted!")
+      setIsDeleteOpen(false)
+      setSelectedDepartment(null)
     } catch (error) {
       toast.error("Failed to delete department")
     }
   }
 
-  const handleAssignUsers = async (departmentId: string) => {
-    if (selectedUsers.length === 0) {
-      toast.warning("Please select at least one user")
-      return
-    }
-
-    try {
-      await assignUsers.mutateAsync({ id: departmentId, userIds: selectedUsers })
-      toast.success("Users assigned successfully")
-      setSelectedUsers([])
-    } catch (error) {
-      toast.error("Failed to assign users")
-    }
-  }
-  const filteredUsers = users?.filter((user) => {
-    const name = `${user.firstName || ""} ${user.lastName || ""}`.toLowerCase();
-    const email = user.email?.toLowerCase() || "";
-
-    const matchesSearch =
-      name.includes(searchQuery.toLowerCase()) ||
-      email.includes(searchQuery.toLowerCase());
-
-    const matchesDept =
-      selectedDepartment === "all" ||
-      user.departmentId === selectedDepartment;
-
-    return matchesSearch && matchesDept;
-  }) || [];
-
-
-  const roleColors = {
-    COMPANY_ADMIN: "bg-chart-1 text-white",
-    QC_ADMIN: "bg-chart-3 text-white",
-    USER: "bg-chart-2 text-white",
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      description: "",
+      tag: "#2563eb",
+      leadId: "",
+      startDate: "",
+      endDate: "",
+      memberIds: [],
+      projectIds: [],
+    })
   }
 
-  if (departmentsLoading || usersLoading) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
+  const toggleMember = (userId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      memberIds: prev.memberIds.includes(userId)
+        ? prev.memberIds.filter(id => id !== userId)
+        : [...prev.memberIds, userId]
+    }))
   }
 
-  if (departmentsError) {
-    return (
-      <div className="p-6">
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-destructive">Failed to load departments</p>
-            <Button variant="outline" onClick={() => window.location.reload()} className="mt-4">
-              Retry
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
+  const toggleProject = (projectId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      projectIds: prev.projectIds.includes(projectId)
+        ? prev.projectIds.filter(id => id !== projectId)
+        : [...prev.projectIds, projectId]
+    }))
+  }
+
+  // Calculate overall stats
+  const overallStats = {
+    totalDepartments: departments?.length || 0,
+    totalMembers: departments?.reduce((sum, d) => sum + (d.stats?.totalMembers || 0), 0) || 0,
+    totalProjects: departments?.reduce((sum, d) => sum + (d.stats?.totalProjects || 0), 0) || 0,
+    avgCompletionRate: departments && departments.length > 0
+      ? Math.round(departments.reduce((sum, d) => sum + (d.stats?.completionRate || 0), 0) / departments.length)
+      : 0,
   }
 
   return (
     <div className="p-6 space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Department Management</h1>
-          <p className="text-muted-foreground">Manage team members and their departments</p>
+          <h1 className="text-2xl font-bold text-foreground">Departments</h1>
+          <p className="text-muted-foreground">Manage your organization's departments and teams</p>
         </div>
-        <div className="flex items-center gap-2">
-          {hasPermission(["COMPANY_ADMIN", "QC_ADMIN"]) && (
-            <Dialog open={isAddDeptOpen} onOpenChange={setIsAddDeptOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  <Building2 className="h-4 w-4 mr-2" />
-                  Add Department
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New Department</DialogTitle>
-                  <DialogDescription>Add a new department to your organization</DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleSubmit(handleCreateDepartment)} className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Department Name *</Label>
+        {isCompanyAdmin && (
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Department
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Create New Department</DialogTitle>
+                <DialogDescription>
+                  Set up a new department with a head, members, and linked projects
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                {/* Basic Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2 col-span-2">
+                    <Label>Department Name *</Label>
                     <Input
-                      id="name"
                       placeholder="e.g., Engineering"
-                      {...register("name", { required: "Department name is required" })}
-                    />
-                    {errors.name && (
-                      <p className="text-sm text-destructive">{errors.name.message}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Input
-                      id="description"
-                      placeholder="Brief description of the department"
-                      {...register("description")}
+                      value={formData.name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="tag">Color Tag (hex code)</Label>
-                    <Input
-                      id="tag"
-                      placeholder="#2563eb"
-                      {...register("tag")}
+                  <div className="space-y-2 col-span-2">
+                    <Label>Description</Label>
+                    <Textarea
+                      placeholder="Describe the department's purpose..."
+                      rows={2}
+                      value={formData.description}
+                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="leadId">Department Lead</Label>
-                    <Select onValueChange={(value) => {
-                      // Update form value
-                      reset({ ...useForm.getValues(), leadId: value })
-                    }}>
+                    <Label>Color Tag</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={formData.tag}
+                        onChange={(e) => setFormData(prev => ({ ...prev, tag: e.target.value }))}
+                        className="w-10 h-10 rounded cursor-pointer"
+                      />
+                      <Input
+                        value={formData.tag}
+                        onChange={(e) => setFormData(prev => ({ ...prev, tag: e.target.value }))}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Department Head</Label>
+                    <Select
+                      value={formData.leadId || "none"}
+                      onValueChange={(value) => setFormData(prev => ({
+                        ...prev,
+                        leadId: value === "none" ? "" : value
+                      }))}
+                    >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a lead" />
+                        <SelectValue placeholder="Select head" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">No lead selected</SelectItem>
-                        {users?.map((user) => (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.name}
+                        <SelectItem value="none">No Head Selected</SelectItem>
+                        {users?.filter(u => u.isActive).map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-5 w-5">
+                                <AvatarImage src={u.avatar || ""} />
+                                <AvatarFallback className="text-xs">
+                                  {u.firstName?.[0]}{u.lastName?.[0]}
+                                </AvatarFallback>
+                              </Avatar>
+                              {u.firstName} {u.lastName}
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={createDepartment.isPending}
-                  >
-                    {createDepartment.isPending && (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                </div>
+
+                {/* Date Range */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Start Date</Label>
+                    <Input
+                      type="date"
+                      value={formData.startDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Date</Label>
+                    <Input
+                      type="date"
+                      value={formData.endDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Members Selection */}
+                <div className="space-y-2">
+                  <Label>Initial Members</Label>
+                  <div className="border rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
+                    {users?.filter(u => u.isActive).map((u) => {
+                      const isSelected = formData.memberIds.includes(u.id)
+                      return (
+                        <div
+                          key={u.id}
+                          className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${isSelected
+                            ? "bg-primary/10 border border-primary"
+                            : "hover:bg-muted"
+                            }`}
+                          onClick={() => toggleMember(u.id)}
+                        >
+                          <Avatar className="h-7 w-7">
+                            <AvatarImage src={u.avatar || ""} />
+                            <AvatarFallback className="text-xs">
+                              {u.firstName?.[0]}{u.lastName?.[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{u.firstName} {u.lastName}</p>
+                          </div>
+                          {isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {formData.memberIds.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {formData.memberIds.length} member(s) selected
+                    </p>
+                  )}
+                </div>
+
+                {/* Projects Selection */}
+                <div className="space-y-2">
+                  <Label>Link Projects</Label>
+                  <div className="border rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
+                    {projects && projects.length > 0 ? (
+                      projects.map((project) => {
+                        const isSelected = formData.projectIds.includes(project.id)
+                        return (
+                          <div
+                            key={project.id}
+                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${isSelected
+                              ? "bg-primary/10 border border-primary"
+                              : "hover:bg-muted"
+                              }`}
+                            onClick={() => toggleProject(project.id)}
+                          >
+                            <FolderKanban className="h-4 w-4 text-muted-foreground" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{project.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {project.status.replace("_", " ")}
+                              </p>
+                            </div>
+                            {isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                          </div>
+                        )
+                      })
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No projects available
+                      </p>
                     )}
-                    Create Department
-                  </Button>
-                </form>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
+                  </div>
+                  {formData.projectIds.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {formData.projectIds.length} project(s) selected
+                    </p>
+                  )}
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={handleCreateDepartment}
+                  disabled={createDepartment.isPending}
+                >
+                  {createDepartment.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Department"
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+
+      {/* Overall Stats */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <Building2 className="h-5 w-5 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{overallStats.totalDepartments}</p>
+                <p className="text-sm text-muted-foreground">Departments</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-500/10">
+                <Users className="h-5 w-5 text-green-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{overallStats.totalMembers}</p>
+                <p className="text-sm text-muted-foreground">Total Members</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/10">
+                <FolderKanban className="h-5 w-5 text-purple-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{overallStats.totalProjects}</p>
+                <p className="text-sm text-muted-foreground">Linked Projects</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-yellow-500/10">
+                <TrendingUp className="h-5 w-5 text-yellow-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{overallStats.avgCompletionRate}%</p>
+                <p className="text-sm text-muted-foreground">Avg Completion</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search departments..."
+          className="pl-9"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
       </div>
 
       {/* Departments Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        {departments?.map((dept) => (
-          <Card key={dept.id} className="cursor-pointer hover:border-primary transition-colors">
-            <CardContent className="p-4">
-              <Link href={`/dashboard/departments/${dept.id}`}>
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: dept.tag || "#888" }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground truncate">{dept.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {dept.users?.length || 0} members
-                    </p>
+      {departmentsLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-3">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-full mt-2" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-20" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : filteredDepartments.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredDepartments.map((dept) => (
+            <Card key={dept.id} className="group hover:border-primary transition-colors">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-4 h-4 rounded-full shrink-0"
+                      style={{ backgroundColor: dept.tag || "#888" }}
+                    />
+                    <div>
+                      <CardTitle className="text-lg">
+                        <Link
+                          href={`/dashboard/departments/${dept.id}`}
+                          className="hover:underline"
+                        >
+                          {dept.name}
+                        </Link>
+                      </CardTitle>
+                      {dept.description && (
+                        <CardDescription className="line-clamp-1">
+                          {dept.description}
+                        </CardDescription>
+                      )}
+                    </div>
+                  </div>
+                  {isCompanyAdmin && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href={`/dashboard/departments/${dept.id}`}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/dashboard/departments/${dept.id}?tab=settings`}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => {
+                            setSelectedDepartment(dept)
+                            setIsDeleteOpen(true)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Department Head */}
+                {dept.lead && (
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+                    <Crown className="h-4 w-4 text-yellow-500" />
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={dept.lead.avatar || ""} />
+                      <AvatarFallback className="text-xs">
+                        {dept.lead.firstName?.[0]}{dept.lead.lastName?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium">
+                      {dept.lead.firstName} {dept.lead.lastName}
+                    </span>
+                    <Badge variant="secondary" className="ml-auto text-xs">
+                      Head
+                    </Badge>
+                  </div>
+                )}
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span>{dept.stats?.totalMembers || 0} members</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <FolderKanban className="h-4 w-4 text-muted-foreground" />
+                    <span>{dept.stats?.totalProjects || 0} projects</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <span>{dept.stats?.totalTimeHours || 0}h logged</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Trophy className="h-4 w-4 text-muted-foreground" />
+                    <span>{dept.stats?.totalPoints || 0} pts</span>
                   </div>
                 </div>
-              </Link>
-              {hasPermission(["COMPANY_ADMIN", "QC_ADMIN"]) && (
-                <div className="mt-2 flex justify-end">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <Link href={`/dashboard/departments/${dept.id}`}>
-                          View Details
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>Edit Department</DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => handleDeleteDepartment(dept.id)}
-                      >
-                        Delete Department
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+
+                {/* Completion Rate */}
+                <div>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-muted-foreground">Task Completion</span>
+                    <span className="font-medium">{dept.stats?.completionRate || 0}%</span>
+                  </div>
+                  <Progress value={dept.stats?.completionRate || 0} className="h-1.5" />
                 </div>
+
+                {/* Members Preview */}
+                {dept.users && dept.users.length > 0 && (
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <div className="flex -space-x-2">
+                      {dept.users.slice(0, 5).map((u) => (
+                        <Avatar key={u.id} className="h-7 w-7 border-2 border-background">
+                          <AvatarImage src={u.avatar || ""} />
+                          <AvatarFallback className="text-xs">
+                            {u.firstName?.[0]}{u.lastName?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                      ))}
+                      {dept.users.length > 5 && (
+                        <div className="h-7 w-7 rounded-full bg-muted border-2 border-background flex items-center justify-center">
+                          <span className="text-xs font-medium">+{dept.users.length - 5}</span>
+                        </div>
+                      )}
+                    </div>
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href={`/dashboard/departments/${dept.id}`}>
+                        View
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="p-8 text-center">
+          <Building2 className="h-12 w-12 mx-auto text-muted-foreground" />
+          <h3 className="mt-4 text-lg font-medium text-foreground">No departments found</h3>
+          <p className="mt-2 text-muted-foreground">
+            {searchQuery
+              ? "Try adjusting your search"
+              : "Get started by creating your first department"
+            }
+          </p>
+          {isCompanyAdmin && !searchQuery && (
+            <Button className="mt-4" onClick={() => setIsCreateOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Department
+            </Button>
+          )}
+        </Card>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Department?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete "{selectedDepartment?.name}" and remove all members from it.
+              Projects will be unlinked but not deleted. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteDepartment}
+            >
+              {deleteDepartment.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Delete"
               )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Users List */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle>Team Members</CardTitle>
-              <CardDescription>View and manage all users in your organization</CardDescription>
-            </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <div className="relative flex-1 sm:flex-initial">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search users..."
-                  className="pl-9 w-full sm:w-64"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                <SelectTrigger className="w-40">
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Departments</SelectItem>
-                  {departments?.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredUsers.map((user) => (
-              <UserCard
-                key={user.id}
-                user={user}
-                departments={departments || []}
-                hasPermission={hasPermission}
-                onAssignUsers={handleAssignUsers}
-                selectedUsers={selectedUsers}
-                setSelectedUsers={setSelectedUsers}
-              />
-            ))}
-          </div>
-          {filteredUsers.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">No users found matching your criteria</div>
-          )}
-        </CardContent>
-      </Card>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
-  )
-}
-
-interface UserCardProps {
-  user: User
-  departments: Department[]
-  hasPermission: (role: string | string[]) => boolean
-  onAssignUsers: (departmentId: string) => void
-  selectedUsers: string[]
-  setSelectedUsers: (ids: string[]) => void
-}
-
-function UserCard({ user, departments, hasPermission, onAssignUsers, selectedUsers, setSelectedUsers }: UserCardProps) {
-  const { mutate: updateUser } = useUpdateUser()
-  const department = departments.find((d) => d.id === user.departmentId)
-
-  const roleColors = {
-    COMPANY_ADMIN: "bg-chart-1 text-white",
-    QC_ADMIN: "bg-chart-3 text-white",
-    USER: "bg-chart-2 text-white",
-  }
-
-  const handleAssignToDept = (deptId: string) => {
-    updateUser({
-      id: user.id,
-      data: { departmentId: deptId }
-    })
-  }
-
-  const handleToggleSelection = () => {
-    if (selectedUsers.includes(user.id)) {
-      setSelectedUsers(selectedUsers.filter(id => id !== user.id))
-    } else {
-      setSelectedUsers([...selectedUsers, user.id])
-    }
-  }
-
-  const isLead = department?.leadId === user.id
-
-  return (
-    <Card className="group hover:border-primary transition-colors">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-12 w-12">
-              <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-              <AvatarFallback>
-                {user.firstName?.slice(0, 1)}{user.lastName?.slice(0, 1)}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <div className="flex items-center gap-2">
-                <Link
-                  href={`/dashboard/departments/user/${user.id}`}
-                  className="font-medium text-foreground hover:underline"
-                >
-                  {user.name}
-                </Link>
-                {isLead && <Crown className="h-4 w-4 text-chart-3" />}
-              </div>
-              <p className="text-sm text-muted-foreground">{user.position || "No position"}</p>
-            </div>
-          </div>
-          {hasPermission(["COMPANY_ADMIN", "QC_ADMIN"]) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Link href={`/dashboard/users/${user.id}/edit`}>
-                    Edit User
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                      Change Department
-                    </DropdownMenuItem>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent side="right">
-                    <DropdownMenuItem onClick={() => handleAssignToDept("")}>
-                      Remove from Department
-                    </DropdownMenuItem>
-                    {departments.map((dept) => (
-                      <DropdownMenuItem
-                        key={dept.id}
-                        onClick={() => handleAssignToDept(dept.id)}
-                      >
-                        {dept.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <DropdownMenuItem
-                  onClick={handleToggleSelection}
-                  className={selectedUsers.includes(user.id) ? "bg-primary/10" : ""}
-                >
-                  {selectedUsers.includes(user.id) ? "Deselect User" : "Select for Bulk Assign"}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive">
-                  Remove User
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-
-        <div className="mt-4 space-y-2">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Mail className="h-4 w-4" />
-            <span className="truncate">{user.email}</span>
-          </div>
-          {user.phone && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Phone className="h-4 w-4" />
-              <span>{user.phone}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            <span>Joined {new Date(user.createdAt).toLocaleDateString()}</span>
-          </div>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Badge className={roleColors[user.role as keyof typeof roleColors] || "bg-gray-500"}>
-              {user.role.replace("_", " ")}
-            </Badge>
-            {department && (
-              <Badge
-                variant="outline"
-                style={{
-                  borderColor: department.tag || "#888",
-                  color: department.tag || "#888"
-                }}
-              >
-                {department.name}
-              </Badge>
-            )}
-          </div>
-          <span className="text-sm font-medium text-foreground">
-            {user.points?.toLocaleString() || 0} pts
-          </span>
-        </div>
-      </CardContent>
-    </Card>
   )
 }

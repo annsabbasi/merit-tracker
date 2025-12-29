@@ -41,7 +41,7 @@ export function useRegisterCompany() {
 
     return useMutation({
         mutationFn: (data: RegisterCompanyRequest) =>
-            api.post<AuthResponse>('/auth/register/company', data),
+            api.post<AuthResponse>('/register/company', data),
         onSuccess: (res) => {
             login(res.access_token, res.user, res.company, res.subscription, false);
             queryClient.clear();
@@ -62,7 +62,7 @@ export function useRegisterUser() {
 
     return useMutation({
         mutationFn: (data: RegisterUserRequest) =>
-            api.post<AuthResponse>('/auth/register/user', data),
+            api.post<AuthResponse>('/register/user', data),
         onSuccess: (res) => {
             login(res.access_token, res.user, res.company, res.subscription, false);
             queryClient.clear();

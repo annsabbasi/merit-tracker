@@ -1,16 +1,37 @@
 // src/lib/hooks/use-sops.ts
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/request';
+import { api, BASE_URL } from '@/lib/api/request';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import type { Sop, SopType, SopStatus } from '@/lib/types/index';
+
+// const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export const sopsKeys = {
     all: ['sops'] as const,
-    list: (filters?: { type?: SopType; status?: SopStatus; search?: string }) => [...sopsKeys.all, 'list', filters] as const,
+    list: (filters?: { type?: SopType; status?: SopStatus; search?: string }) =>
+        [...sopsKeys.all, 'list', filters] as const,
     approved: () => [...sopsKeys.all, 'approved'] as const,
     pending: () => [...sopsKeys.all, 'pending'] as const,
+    mySops: () => [...sopsKeys.all, 'my-sops'] as const,
     stats: () => [...sopsKeys.all, 'stats'] as const,
     detail: (id: string) => [...sopsKeys.all, 'detail', id] as const,
 };
+
+// Extended SOP stats type
+export interface SopStats {
+    total: number;
+    approved: number;
+    pending: number;
+    rejected: number;
+    totalViews: number;
+    byType: Array<{ type: SopType; count: number }>;
+    mostViewed: Array<{
+        id: string;
+        title: string;
+        type: SopType;
+        viewCount: number;
+    }>;
+}
 
 // Get all SOPs
 export function useSops(filters?: { type?: SopType; status?: SopStatus; search?: string }) {
@@ -36,11 +57,19 @@ export function usePendingSops() {
     });
 }
 
+// Get my SOPs
+export function useMySops() {
+    return useQuery({
+        queryKey: sopsKeys.mySops(),
+        queryFn: () => api.get<Sop[]>('/sops/my-sops'),
+    });
+}
+
 // Get SOP stats (admin)
 export function useSopStats() {
     return useQuery({
         queryKey: sopsKeys.stats(),
-        queryFn: () => api.get<{ total: number; approved: number; pending: number; rejected: number }>('/sops/stats'),
+        queryFn: () => api.get<SopStats>('/sops/stats'),
     });
 }
 
@@ -53,7 +82,7 @@ export function useSop(id: string) {
     });
 }
 
-// Create SOP
+// Create SOP with URL
 export function useCreateSop() {
     const queryClient = useQueryClient();
 
@@ -67,6 +96,59 @@ export function useCreateSop() {
             duration?: number;
             tags?: string[];
         }) => api.post<Sop>('/sops', data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: sopsKeys.all });
+        },
+    });
+}
+
+// Create SOP with file upload
+export function useCreateSopWithUpload() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (data: {
+            file: File;
+            thumbnail?: File;
+            title: string;
+            description?: string;
+            duration?: number;
+            tags?: string[];
+        }): Promise<Sop> => {
+            const token = useAuthStore.getState().token;
+
+            const formData = new FormData();
+            formData.append('file', data.file);
+            if (data.thumbnail) {
+                formData.append('thumbnail', data.thumbnail);
+            }
+            formData.append('title', data.title);
+            if (data.description) {
+                formData.append('description', data.description);
+            }
+            if (data.duration) {
+                formData.append('duration', data.duration.toString());
+            }
+            if (data.tags && data.tags.length > 0) {
+                formData.append('tags', JSON.stringify(data.tags));
+            }
+
+            // const response = await fetch(`${API_URL}/sops/upload`, {
+            const response = await fetch(`${BASE_URL}/sops/upload`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to upload SOP');
+            }
+
+            return response.json();
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: sopsKeys.all });
         },

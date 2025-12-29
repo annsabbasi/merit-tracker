@@ -2,21 +2,44 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Project, ProjectMember, ProjectStats, ProjectStatus, ProjectMemberRole } from '@/lib/types/index';
 import { api } from '../api';
+import { departmentsKeys } from './use-departments';
 
 export const projectsKeys = {
     all: ['projects'] as const,
-    list: (filters?: { status?: ProjectStatus; search?: string }) => [...projectsKeys.all, 'list', filters] as const,
+    list: (filters?: { status?: ProjectStatus; search?: string; departmentId?: string }) =>
+        [...projectsKeys.all, 'list', filters] as const,
     myProjects: () => [...projectsKeys.all, 'my-projects'] as const,
     detail: (id: string) => [...projectsKeys.all, 'detail', id] as const,
     leaderboard: (id: string) => [...projectsKeys.all, 'leaderboard', id] as const,
     stats: (id: string) => [...projectsKeys.all, 'stats', id] as const,
 };
 
+// Extended Project type with department info
+export interface ProjectWithDepartments extends Project {
+    departments?: Array<{
+        id: string;
+        departmentId: string;
+        projectId: string;
+        assignedAt: string;
+        department: {
+            id: string;
+            name: string;
+            tag: string | null;
+            description?: string | null;
+        };
+        assignedBy?: {
+            id: string;
+            firstName: string;
+            lastName: string;
+        };
+    }>;
+}
+
 // Get all projects
-export function useProjects(filters?: { status?: ProjectStatus; search?: string }) {
+export function useProjects(filters?: { status?: ProjectStatus; search?: string; departmentId?: string }) {
     return useQuery({
         queryKey: projectsKeys.list(filters),
-        queryFn: () => api.get<Project[]>('/projects', filters),
+        queryFn: () => api.get<ProjectWithDepartments[]>('/projects', filters),
     });
 }
 
@@ -24,7 +47,7 @@ export function useProjects(filters?: { status?: ProjectStatus; search?: string 
 export function useMyProjects() {
     return useQuery({
         queryKey: projectsKeys.myProjects(),
-        queryFn: () => api.get<Project[]>('/projects/my-projects'),
+        queryFn: () => api.get<ProjectWithDepartments[]>('/projects/my-projects'),
     });
 }
 
@@ -32,7 +55,7 @@ export function useMyProjects() {
 export function useProject(id: string) {
     return useQuery({
         queryKey: projectsKeys.detail(id),
-        queryFn: () => api.get<Project>(`/projects/${id}`),
+        queryFn: () => api.get<ProjectWithDepartments>(`/projects/${id}`),
         enabled: !!id,
     });
 }
@@ -55,7 +78,7 @@ export function useProjectStats(id: string) {
     });
 }
 
-// Create project
+// Create project - NOW REQUIRES departmentId
 export function useCreateProject() {
     const queryClient = useQueryClient();
 
@@ -69,9 +92,14 @@ export function useCreateProject() {
             startDate?: string;
             endDate?: string;
             memberIds?: string[];
-        }) => api.post<Project>('/projects/create', data),
-        onSuccess: () => {
+            departmentId: string; // REQUIRED
+            screenMonitoringEnabled?: boolean;
+        }) => api.post<ProjectWithDepartments>('/projects/create', data),
+        onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: projectsKeys.all });
+            // Also invalidate department queries since project count changed
+            queryClient.invalidateQueries({ queryKey: departmentsKeys.all });
+            queryClient.invalidateQueries({ queryKey: departmentsKeys.detail(variables.departmentId) });
         },
     });
 }
@@ -82,7 +110,7 @@ export function useUpdateProject() {
 
     return useMutation({
         mutationFn: ({ id, data }: { id: string; data: Partial<Project> }) =>
-            api.put<Project>(`/projects/${id}`, data),
+            api.put<ProjectWithDepartments>(`/projects/${id}`, data),
         onSuccess: (_, { id }) => {
             queryClient.invalidateQueries({ queryKey: projectsKeys.detail(id) });
             queryClient.invalidateQueries({ queryKey: projectsKeys.all });
@@ -98,6 +126,7 @@ export function useDeleteProject() {
         mutationFn: (id: string) => api.delete(`/projects/${id}`),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: projectsKeys.all });
+            queryClient.invalidateQueries({ queryKey: departmentsKeys.all });
         },
     });
 }
@@ -108,7 +137,7 @@ export function useAddProjectMembers() {
 
     return useMutation({
         mutationFn: ({ id, userIds }: { id: string; userIds: string[] }) =>
-            api.patch<Project>(`/projects/${id}/members/add`, { userIds }),
+            api.patch<ProjectWithDepartments>(`/projects/${id}/members/add`, { userIds }),
         onSuccess: (_, { id }) => {
             queryClient.invalidateQueries({ queryKey: projectsKeys.detail(id) });
         },
@@ -121,7 +150,7 @@ export function useRemoveProjectMembers() {
 
     return useMutation({
         mutationFn: ({ id, userIds }: { id: string; userIds: string[] }) =>
-            api.patch<Project>(`/projects/${id}/members/remove`, { userIds }),
+            api.patch<ProjectWithDepartments>(`/projects/${id}/members/remove`, { userIds }),
         onSuccess: (_, { id }) => {
             queryClient.invalidateQueries({ queryKey: projectsKeys.detail(id) });
         },
@@ -134,7 +163,7 @@ export function useUpdateMemberRole() {
 
     return useMutation({
         mutationFn: ({ projectId, userId, role }: { projectId: string; userId: string; role: ProjectMemberRole }) =>
-            api.patch<Project>(`/projects/${projectId}/members/role`, { userId, role }),
+            api.patch<ProjectWithDepartments>(`/projects/${projectId}/members/role`, { userId, role }),
         onSuccess: (_, { projectId }) => {
             queryClient.invalidateQueries({ queryKey: projectsKeys.detail(projectId) });
             queryClient.invalidateQueries({ queryKey: projectsKeys.leaderboard(projectId) });
