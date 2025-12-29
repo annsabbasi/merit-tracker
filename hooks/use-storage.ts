@@ -1,10 +1,9 @@
 // src/lib/hooks/use-storage.ts
 import { useMutation } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/stores/auth-store';
-import { BASE_URL } from '@/lib/api';
+import { BASE_URL } from '@/lib/api/request';
 
-// const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-
+// Response types
 export interface UploadResult {
     url: string;
     path: string;
@@ -21,8 +20,29 @@ export interface SopUploadResult {
     detectedType: 'VIDEO' | 'IMAGE' | 'PDF' | 'DOCUMENT';
 }
 
+// Input types
+export interface UploadFileData {
+    file: File;
+    folder?: string;
+}
+
+export interface UploadMultipleFilesData {
+    files: File[];
+    folder?: string;
+}
+
+export interface UploadSopFileData {
+    file: File;
+    thumbnail?: File;
+}
+
+export interface ValidateFileOptions {
+    maxSizeMB?: number;
+    allowedTypes?: string[];
+}
+
 // Helper to get auth header
-const getAuthHeader = () => {
+const getAuthHeader = (): Record<string, string> => {
     const token = useAuthStore.getState().token;
     return token ? { Authorization: `Bearer ${token}` } : {};
 };
@@ -30,7 +50,7 @@ const getAuthHeader = () => {
 // Upload single file
 export function useUploadFile() {
     return useMutation({
-        mutationFn: async ({ file, folder }: { file: File; folder?: string }): Promise<UploadResult> => {
+        mutationFn: async ({ file, folder }: UploadFileData): Promise<UploadResult> => {
             const formData = new FormData();
             formData.append('file', file);
             if (folder) {
@@ -56,7 +76,7 @@ export function useUploadFile() {
 // Upload multiple files
 export function useUploadMultipleFiles() {
     return useMutation({
-        mutationFn: async ({ files, folder }: { files: File[]; folder?: string }): Promise<UploadResult[]> => {
+        mutationFn: async ({ files, folder }: UploadMultipleFilesData): Promise<UploadResult[]> => {
             const formData = new FormData();
             files.forEach((file) => {
                 formData.append('files', file);
@@ -84,13 +104,7 @@ export function useUploadMultipleFiles() {
 // Upload SOP with optional thumbnail
 export function useUploadSopFile() {
     return useMutation({
-        mutationFn: async ({
-            file,
-            thumbnail,
-        }: {
-            file: File;
-            thumbnail?: File;
-        }): Promise<SopUploadResult> => {
+        mutationFn: async ({ file, thumbnail }: UploadSopFileData): Promise<SopUploadResult> => {
             const formData = new FormData();
             formData.append('files', file);
             if (thumbnail) {
@@ -136,16 +150,17 @@ export function useDeleteFile() {
     });
 }
 
-// Helper function to format file size
+// Utility functions
 export function formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 Bytes';
+
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
-// Helper function to get file type icon
 export function getFileTypeIcon(mimeType: string): 'video' | 'image' | 'pdf' | 'document' {
     if (mimeType.startsWith('video/')) return 'video';
     if (mimeType.startsWith('image/')) return 'image';
@@ -153,13 +168,9 @@ export function getFileTypeIcon(mimeType: string): 'video' | 'image' | 'pdf' | '
     return 'document';
 }
 
-// Helper function to validate file
 export function validateFile(
     file: File,
-    options?: {
-        maxSizeMB?: number;
-        allowedTypes?: string[];
-    }
+    options?: ValidateFileOptions
 ): { valid: boolean; error?: string } {
     const maxSizeMB = options?.maxSizeMB || 100;
     const allowedTypes = options?.allowedTypes || [
@@ -174,12 +185,10 @@ export function validateFile(
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ];
 
-    // Check size
     if (file.size > maxSizeMB * 1024 * 1024) {
         return { valid: false, error: `File size exceeds ${maxSizeMB}MB limit` };
     }
 
-    // Check type
     if (!allowedTypes.includes(file.type)) {
         return { valid: false, error: `File type ${file.type} is not allowed` };
     }

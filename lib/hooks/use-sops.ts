@@ -4,20 +4,24 @@ import { api, BASE_URL } from '@/lib/api/request';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import type { Sop, SopType, SopStatus } from '@/lib/types/index';
 
-// const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-
 export const sopsKeys = {
     all: ['sops'] as const,
-    list: (filters?: { type?: SopType; status?: SopStatus; search?: string }) =>
-        [...sopsKeys.all, 'list', filters] as const,
+    list: (filters?: SopFilters) => [...sopsKeys.all, 'list', filters] as const,
+    detail: (id: string) => [...sopsKeys.all, 'detail', id] as const,
     approved: () => [...sopsKeys.all, 'approved'] as const,
     pending: () => [...sopsKeys.all, 'pending'] as const,
     mySops: () => [...sopsKeys.all, 'my-sops'] as const,
     stats: () => [...sopsKeys.all, 'stats'] as const,
-    detail: (id: string) => [...sopsKeys.all, 'detail', id] as const,
 };
 
-// Extended SOP stats type
+// Filter types
+export interface SopFilters {
+    type?: SopType;
+    status?: SopStatus;
+    search?: string;
+}
+
+// Stats type
 export interface SopStats {
     total: number;
     approved: number;
@@ -33,11 +37,40 @@ export interface SopStats {
     }>;
 }
 
+// Create SOP input types
+export interface CreateSopData {
+    title: string;
+    description?: string;
+    type: SopType;
+    fileUrl: string;
+    thumbnailUrl?: string;
+    duration?: number;
+    tags?: string[];
+}
+
+export interface CreateSopWithUploadData {
+    file: File;
+    thumbnail?: File;
+    title: string;
+    description?: string;
+    duration?: number;
+    tags?: string[];
+}
+
 // Get all SOPs
-export function useSops(filters?: { type?: SopType; status?: SopStatus; search?: string }) {
+export function useSops(filters?: SopFilters) {
     return useQuery({
         queryKey: sopsKeys.list(filters),
         queryFn: () => api.get<Sop[]>('/sops', filters),
+    });
+}
+
+// Get SOP by ID
+export function useSop(id: string) {
+    return useQuery({
+        queryKey: sopsKeys.detail(id),
+        queryFn: () => api.get<Sop>(`/sops/${id}`),
+        enabled: !!id,
     });
 }
 
@@ -73,29 +106,12 @@ export function useSopStats() {
     });
 }
 
-// Get SOP by ID
-export function useSop(id: string) {
-    return useQuery({
-        queryKey: sopsKeys.detail(id),
-        queryFn: () => api.get<Sop>(`/sops/${id}`),
-        enabled: !!id,
-    });
-}
-
 // Create SOP with URL
 export function useCreateSop() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (data: {
-            title: string;
-            description?: string;
-            type: SopType;
-            fileUrl: string;
-            thumbnailUrl?: string;
-            duration?: number;
-            tags?: string[];
-        }) => api.post<Sop>('/sops', data),
+        mutationFn: (data: CreateSopData) => api.post<Sop>('/sops', data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: sopsKeys.all });
         },
@@ -107,14 +123,7 @@ export function useCreateSopWithUpload() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (data: {
-            file: File;
-            thumbnail?: File;
-            title: string;
-            description?: string;
-            duration?: number;
-            tags?: string[];
-        }): Promise<Sop> => {
+        mutationFn: async (data: CreateSopWithUploadData): Promise<Sop> => {
             const token = useAuthStore.getState().token;
 
             const formData = new FormData();
@@ -133,7 +142,6 @@ export function useCreateSopWithUpload() {
                 formData.append('tags', JSON.stringify(data.tags));
             }
 
-            // const response = await fetch(`${API_URL}/sops/upload`, {
             const response = await fetch(`${BASE_URL}/sops/upload`, {
                 method: 'POST',
                 headers: {
