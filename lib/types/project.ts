@@ -1,7 +1,7 @@
 // src/lib/types/index.ts
 
 // ============ ENUMS ============
-export type UserRole = 'USER' | 'QC_ADMIN' | 'COMPANY_ADMIN';
+export type UserRole = 'USER' | 'QC_ADMIN' | 'COMPANY';
 export type SubscriptionStatus = 'TRIAL' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
 export type ProjectStatus = 'PLANNING' | 'IN_PROGRESS' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
 export type ProjectMemberRole = 'MEMBER' | 'QC_ADMIN' | 'LEAD';

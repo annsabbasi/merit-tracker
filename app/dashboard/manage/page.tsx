@@ -114,8 +114,8 @@ export default function ManagePage() {
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
 
   // Check permissions
-  const isAdmin = user?.role === "COMPANY_ADMIN" || user?.role === "QC_ADMIN"
-  const isCompanyAdmin = user?.role === "COMPANY_ADMIN"
+  const isAdmin = user?.role === "COMPANY" || user?.role === "QC_ADMIN"
+  const isCompanyAdmin = user?.role === "COMPANY"
 
   // Fetch data
   const { data: company, isLoading: companyLoading } = useMyCompany()
@@ -337,13 +337,13 @@ export default function ManagePage() {
   }
 
   const roleIcons: Record<string, any> = {
-    COMPANY_ADMIN: Crown,
+    COMPANY: Crown,
     QC_ADMIN: ShieldCheck,
     USER: Shield,
   }
 
   const roleColors: Record<string, string> = {
-    COMPANY_ADMIN: "text-yellow-500 border-yellow-500 bg-yellow-500/10",
+    COMPANY: "text-yellow-500 border-yellow-500 bg-yellow-500/10",
     QC_ADMIN: "text-blue-500 border-blue-500 bg-blue-500/10",
     USER: "text-gray-500 border-gray-500 bg-gray-500/10",
   }
@@ -595,12 +595,12 @@ export default function ManagePage() {
                     <div key={u.id} className="flex items-center gap-3">
                       <span
                         className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${index === 0
-                            ? "bg-yellow-500 text-white"
-                            : index === 1
-                              ? "bg-gray-400 text-white"
-                              : index === 2
-                                ? "bg-amber-600 text-white"
-                                : "bg-muted text-muted-foreground"
+                          ? "bg-yellow-500 text-white"
+                          : index === 1
+                            ? "bg-gray-400 text-white"
+                            : index === 2
+                              ? "bg-amber-600 text-white"
+                              : "bg-muted text-muted-foreground"
                           }`}
                       >
                         {index + 1}
@@ -728,7 +728,7 @@ export default function ManagePage() {
                   {filteredUsers.map((u) => {
                     const RoleIcon = roleIcons[u.role] || Shield
                     const isSelf = u.id === user?.id
-                    const canModify = isCompanyAdmin && !isSelf && u.role !== "COMPANY_ADMIN"
+                    const canModify = isCompanyAdmin && !isSelf && u.role !== "COMPANY"
 
                     return (
                       <div

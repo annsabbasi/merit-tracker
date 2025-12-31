@@ -266,7 +266,7 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
   }
 
   const roleColors: Record<string, string> = {
-    COMPANY_ADMIN: "bg-yellow-500 text-white",
+    COMPANY: "bg-yellow-500 text-white",
     QC_ADMIN: "bg-blue-500 text-white",
     USER: "bg-gray-500 text-white",
   }

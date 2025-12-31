@@ -182,7 +182,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const sendMessage = useSendMessage()
 
   // Check permissions
-  const isAdmin = user?.role === "COMPANY_ADMIN" || user?.role === "QC_ADMIN"
+  const isAdmin = user?.role === "COMPANY" || user?.role === "QC_ADMIN"
   const isProjectLead = project?.projectLeadId === user?.id
   const canManageProject = isAdmin || isProjectLead
 
@@ -519,7 +519,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   <Edit className="h-4 w-4 mr-2" />
                   Edit Project
                 </DropdownMenuItem>
-                {user?.role === "COMPANY_ADMIN" && (
+                {user?.role === "COMPANY" && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem

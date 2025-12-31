@@ -79,8 +79,8 @@ export default function ProjectsPage() {
   const { data: departments, isLoading: departmentsLoading } = useDepartments()
   const createProject = useCreateProject()
 
-  // Check if user can create projects (COMPANY_ADMIN or QC_ADMIN)
-  const canCreateProject = user?.role === "COMPANY_ADMIN" || user?.role === "QC_ADMIN"
+  // Check if user can create projects (COMPANY or QC_ADMIN)
+  const canCreateProject = user?.role === "COMPANY" || user?.role === "QC_ADMIN"
 
   // Check if there are any departments to create projects in
   const hasDepartments = departments && departments.length > 0
@@ -159,7 +159,7 @@ export default function ProjectsPage() {
 
   // Get admins/leads for project lead selection
   const eligibleLeads = users?.filter(u =>
-    u.role === "COMPANY_ADMIN" || u.role === "QC_ADMIN"
+    u.role === "COMPANY" || u.role === "QC_ADMIN"
   ) || []
 
   // Get department name helper

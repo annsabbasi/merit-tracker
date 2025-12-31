@@ -87,8 +87,8 @@ export default function DepartmentsPage() {
     projectIds: [] as string[],
   })
 
-  // Check permissions - only COMPANY_ADMIN can manage departments
-  const isCompanyAdmin = user?.role === "COMPANY_ADMIN"
+  // Check permissions - only COMPANY can manage departments
+  const isCompanyAdmin = user?.role === "COMPANY"
 
   // Fetch data
   const { data: departments, isLoading: departmentsLoading } = useDepartments({
