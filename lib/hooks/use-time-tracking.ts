@@ -4,6 +4,7 @@ import { api } from '@/lib/api/request';
 import { usersKeys } from './use-users';
 import { projectsKeys } from './use-projects';
 import type { TimeTracking, ActiveTimerResponse } from '@/lib/types/index';
+import { ActiveTimerWithScreenshots } from '../types/screen-capture';
 
 export const timeTrackingKeys = {
     all: ['time-tracking'] as const,
@@ -18,8 +19,8 @@ export const timeTrackingKeys = {
 export function useActiveTimer() {
     return useQuery({
         queryKey: timeTrackingKeys.active(),
-        queryFn: () => api.get<ActiveTimerResponse>('/time-tracking/active'),
-        refetchInterval: 30 * 1000, // Refetch every 30 seconds for cross-device sync
+        queryFn: () => api.get<ActiveTimerWithScreenshots>('/time-tracking/active'),
+        refetchInterval: 30 * 1000,
     });
 }
 

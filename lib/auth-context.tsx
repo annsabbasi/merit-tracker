@@ -30,6 +30,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [company, setCompany] = useState<Company | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  console.log("The Complete Initial data of user", user)
+  console.log("The Complete Initial data of company", company)
   useEffect(() => {
     const savedUser = localStorage.getItem("workflow_user")
     const savedCompany = localStorage.getItem("workflow_company")

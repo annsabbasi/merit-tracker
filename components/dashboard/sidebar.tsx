@@ -1,3 +1,4 @@
+// components/dashboard/sidebar.tsx
 "use client"
 
 import Link from "next/link"
@@ -15,6 +16,7 @@ import {
   ChevronLeft,
   Building2,
   Copy,
+  Monitor,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -30,6 +32,7 @@ const navigation = [
   { name: "SOPs", href: "/dashboard/sops", icon: FileVideo },
   { name: "Manage", href: "/dashboard/manage", icon: Settings },
   { name: "Notifications", href: "/dashboard/notifications", icon: Bell },
+  { name: "Screen Capture", href: "/dashboard/settings/screen-capture", icon: Monitor },
 ]
 
 export function Sidebar() {
@@ -51,7 +54,8 @@ export function Sidebar() {
     qc_admin: "bg-chart-3 text-white",
     user: "bg-chart-2 text-white",
   }
-
+  console.log("This is the data of the company", company)
+  console.log("This is the data of the user", user)
   return (
     <TooltipProvider>
       <aside

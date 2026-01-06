@@ -37,6 +37,11 @@ import {
   useChatMessages,
   useSendMessage,
 } from "@/lib/hooks/use-chat"
+import {
+  AgentInstallBanner,
+  ScreenshotGallery,
+  CaptureStatusIndicator
+} from "@/components/screen-capture"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -103,6 +108,7 @@ import {
   Users,
 } from "lucide-react"
 import { toast } from "sonner"
+import { api } from "@/lib/api/request"
 // import type { SubProjectStatus, ProjectMemberRole, ProjectStatus } from "@/lib/types/index"
 import type { SubProjectStatus, ProjectMemberRole, ProjectStatus } from "@/lib/types/project"
 
@@ -120,6 +126,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [isCreateChatOpen, setIsCreateChatOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<any>(null)
   const [trackingElapsed, setTrackingElapsed] = useState(0)
+  const [selectedTimeEntry, setSelectedTimeEntry] = useState<any>(null)
 
   // Task form state
   const [taskForm, setTaskForm] = useState({
@@ -308,17 +315,51 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  // In your handleStartTracking function:
   const handleStartTracking = async (subProjectId: string) => {
     if (activeTimer?.active) {
       toast.error("You already have an active timer. Stop it first.")
       return
     }
 
+    // Check if project requires screen capture
+    const task = tasks?.find(t => t.id === subProjectId)
+    const projectRequiresCapture = project?.screenCaptureEnabled
+
+    if (projectRequiresCapture) {
+      try {
+        // Check agent status
+        const agentStatus = await api.get<{ installed: boolean; online: boolean }>(
+          '/desktop-agent/check-installed'
+        )
+
+        if (!agentStatus.installed) {
+          toast.error("This project requires the desktop agent. Please install it first.")
+          return
+        }
+
+        if (!agentStatus.online) {
+          toast.error("Please start the Merit Tracker Desktop app to begin tracking.")
+          return
+        }
+      } catch (error) {
+        console.error("Failed to check agent status:", error)
+        // Continue anyway if check fails
+      }
+    }
+
+    // Proceed with starting
     try {
       await startTracking.mutateAsync({ subProjectId })
       toast.success("Time tracking started!")
     } catch (error: any) {
-      toast.error(error.message || "Failed to start tracking")
+      if (error?.response?.data?.code === 'AGENT_NOT_INSTALLED') {
+        toast.error("Desktop agent required. Please install it.")
+      } else if (error?.response?.data?.code === 'AGENT_OFFLINE') {
+        toast.error("Desktop agent is offline. Please start the app.")
+      } else {
+        toast.error(error?.message || "Failed to start tracking")
+      }
     }
   }
 
@@ -871,6 +912,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
         {/* Time Tracker Tab */}
         <TabsContent value="tracker" className="space-y-4">
+          {/* Agent Install Banner - shows when screen capture is enabled */}
+          {project.screenCaptureEnabled && (
+            <AgentInstallBanner />
+          )}
+
+          {/* Screen Monitoring Alert */}
           {project.screenMonitoringEnabled && (
             <Alert>
               <AlertTriangle className="h-4 w-4" />
@@ -882,6 +929,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </Alert>
           )}
 
+          {/* Capture Status Indicator - shows when actively tracking with screen capture */}
+          {activeTimer?.active && activeTimer.timer?.screenCaptureRequired && (
+            <div className="flex items-center justify-center gap-2">
+              <CaptureStatusIndicator isCapturing={true} />
+            </div>
+          )}
           {/* Active Timer Display */}
           <Card>
             <CardContent className="p-8 text-center">
@@ -934,7 +987,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               )}
             </CardContent>
           </Card>
-
+          {selectedTimeEntry && (
+            <ScreenshotGallery
+              timeTrackingId={selectedTimeEntry.id}
+              showStats={true}
+              canDelete={isAdmin}
+            />
+          )}
           {/* Time Summary */}
           <Card>
             <CardHeader>

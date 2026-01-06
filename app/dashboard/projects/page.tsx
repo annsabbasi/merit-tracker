@@ -65,8 +65,10 @@ export default function ProjectsPage() {
     startDate: "",
     endDate: "",
     memberIds: [] as string[],
-    departmentId: "", // REQUIRED - must select a department
-    screenMonitoringEnabled: false,
+    departmentId: "",
+    screenCaptureEnabled: false,  // Keep this
+    screenCaptureInterval: 3,     // Keep this
+    // REMOVE: screenMonitoringEnabled: false,
   })
 
   // Fetch data using hooks
@@ -125,8 +127,9 @@ export default function ProjectsPage() {
         startDate: formData.startDate || undefined,
         endDate: formData.endDate || undefined,
         memberIds: formData.memberIds.length > 0 ? formData.memberIds : undefined,
-        departmentId: formData.departmentId, // REQUIRED
-        screenMonitoringEnabled: formData.screenMonitoringEnabled,
+        departmentId: formData.departmentId,
+        screenCaptureEnabled: formData.screenCaptureEnabled,  // Use this
+        screenCaptureInterval: formData.screenCaptureEnabled ? formData.screenCaptureInterval : undefined,
       })
 
       toast.success("Project created successfully!")
@@ -313,6 +316,49 @@ export default function ProjectsPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+                <div className="space-y-4 p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Camera className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">Screen Capture</p>
+                        <p className="text-sm text-muted-foreground">
+                          Capture screenshots during time tracking
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={formData.screenCaptureEnabled}
+                      onCheckedChange={(checked) => setFormData(prev => ({
+                        ...prev,
+                        screenCaptureEnabled: checked
+                      }))}
+                    />
+                  </div>
+
+                  {formData.screenCaptureEnabled && (
+                    <div className="space-y-2 pt-2 border-t">
+                      <Label>Capture Interval</Label>
+                      <Select
+                        value={formData.screenCaptureInterval.toString()}
+                        onValueChange={(v) => setFormData(prev => ({
+                          ...prev,
+                          screenCaptureInterval: parseInt(v)
+                        }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="2">Every 2 minutes</SelectItem>
+                          <SelectItem value="3">Every 3 minutes (recommended)</SelectItem>
+                          <SelectItem value="4">Every 4 minutes</SelectItem>
+                          <SelectItem value="5">Every 5 minutes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
