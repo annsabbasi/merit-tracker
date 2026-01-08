@@ -44,9 +44,10 @@ import {
   AlertTriangle,
   Camera,
   CheckCircle2,
+  ShieldAlert,
 } from "lucide-react"
 import { toast } from "sonner"
-import type { ProjectStatus } from "@/lib/types/project"
+import type { ProjectStatus } from "@/lib/types/index"
 
 export default function ProjectsPage() {
   const { user } = useAuthStore()
@@ -66,9 +67,8 @@ export default function ProjectsPage() {
     endDate: "",
     memberIds: [] as string[],
     departmentId: "",
-    screenCaptureEnabled: false,  // Keep this
-    screenCaptureInterval: 3,     // Keep this
-    // REMOVE: screenMonitoringEnabled: false,
+    screenCaptureEnabled: false,
+    screenCaptureInterval: 3,
   })
 
   // Fetch data using hooks
@@ -81,8 +81,11 @@ export default function ProjectsPage() {
   const { data: departments, isLoading: departmentsLoading } = useDepartments()
   const createProject = useCreateProject()
 
-  // Check if user can create projects (COMPANY or QC_ADMIN)
-  const canCreateProject = user?.role === "COMPANY" || user?.role === "QC_ADMIN"
+  // ============================================
+  // IMPORTANT: Only COMPANY role can create projects
+  // QC_ADMIN and USER roles cannot create projects
+  // ============================================
+  const canCreateProject = user?.role === "COMPANY"
 
   // Check if there are any departments to create projects in
   const hasDepartments = departments && departments.length > 0
@@ -105,13 +108,11 @@ export default function ProjectsPage() {
   }
 
   const handleCreateProject = async () => {
-    // Validation
     if (!formData.name.trim()) {
       toast.error("Project name is required")
       return
     }
 
-    // CRITICAL: Department is required
     if (!formData.departmentId) {
       toast.error("Please select a department. Every project must belong to a department.")
       return
@@ -128,7 +129,7 @@ export default function ProjectsPage() {
         endDate: formData.endDate || undefined,
         memberIds: formData.memberIds.length > 0 ? formData.memberIds : undefined,
         departmentId: formData.departmentId,
-        screenCaptureEnabled: formData.screenCaptureEnabled,  // Use this
+        screenCaptureEnabled: formData.screenCaptureEnabled,
         screenCaptureInterval: formData.screenCaptureEnabled ? formData.screenCaptureInterval : undefined,
       })
 
@@ -144,10 +145,15 @@ export default function ProjectsPage() {
         endDate: "",
         memberIds: [],
         departmentId: "",
-        screenMonitoringEnabled: false,
+        screenCaptureEnabled: false,
+        screenCaptureInterval: 3,
       })
     } catch (error: any) {
-      toast.error(error?.message || "Failed to create project")
+      if (error?.response?.status === 403) {
+        toast.error("Only company administrators can create projects. Please contact your admin.")
+      } else {
+        toast.error(error?.message || "Failed to create project")
+      }
     }
   }
 
@@ -160,12 +166,10 @@ export default function ProjectsPage() {
     }))
   }
 
-  // Get admins/leads for project lead selection
   const eligibleLeads = users?.filter(u =>
     u.role === "COMPANY" || u.role === "QC_ADMIN"
   ) || []
 
-  // Get department name helper
   const getDepartmentName = (project: any) => {
     return project.departments?.[0]?.department?.name || "No Department"
   }
@@ -195,7 +199,7 @@ export default function ProjectsPage() {
           <h1 className="text-2xl font-bold text-foreground">Projects</h1>
           <p className="text-muted-foreground">Manage and track all your projects</p>
         </div>
-        {canCreateProject && (
+        {canCreateProject ? (
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button disabled={!hasDepartments}>
@@ -211,7 +215,6 @@ export default function ProjectsPage() {
                 </DialogDescription>
               </DialogHeader>
 
-              {/* Warning if no departments */}
               {!hasDepartments && (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
@@ -226,7 +229,7 @@ export default function ProjectsPage() {
               )}
 
               <div className="space-y-4 pt-4">
-                {/* DEPARTMENT SELECTION - REQUIRED AND FIRST */}
+                {/* Department Selection */}
                 <div className="space-y-2 p-4 border-2 border-primary/50 rounded-lg bg-primary/5">
                   <Label className="flex items-center gap-2 text-base font-semibold">
                     <Building2 className="h-4 w-4" />
@@ -266,9 +269,6 @@ export default function ProjectsPage() {
                       )}
                     </SelectContent>
                   </Select>
-                  {!formData.departmentId && (
-                    <p className="text-xs text-destructive">Department selection is required</p>
-                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -317,6 +317,8 @@ export default function ProjectsPage() {
                     </Select>
                   </div>
                 </div>
+
+                {/* Screen Capture Settings */}
                 <div className="space-y-4 p-4 border rounded-lg">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -414,26 +416,6 @@ export default function ProjectsPage() {
                   </Select>
                 </div>
 
-                {/* Screen Monitoring Toggle */}
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Camera className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">Screen Monitoring</p>
-                      <p className="text-sm text-muted-foreground">
-                        Capture screenshots during time tracking
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={formData.screenMonitoringEnabled}
-                    onCheckedChange={(checked) => setFormData(prev => ({
-                      ...prev,
-                      screenMonitoringEnabled: checked
-                    }))}
-                  />
-                </div>
-
                 {/* Team Members Selection */}
                 <div className="space-y-2">
                   <Label>Team Members</Label>
@@ -503,6 +485,11 @@ export default function ProjectsPage() {
               </div>
             </DialogContent>
           </Dialog>
+        ) : (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <ShieldAlert className="h-4 w-4" />
+            <span>Only company admins can create projects</span>
+          </div>
         )}
       </div>
 
@@ -520,6 +507,17 @@ export default function ProjectsPage() {
         </Alert>
       )}
 
+      {/* Info for QC_ADMIN users */}
+      {user?.role === "QC_ADMIN" && (
+        <Alert>
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>Project Creation Restricted</AlertTitle>
+          <AlertDescription>
+            Project creation is limited to company administrators. You can create and manage SubProjects within existing projects.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
@@ -532,7 +530,6 @@ export default function ProjectsPage() {
           />
         </div>
 
-        {/* Department Filter */}
         <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
           <SelectTrigger className="w-48">
             <Building2 className="h-4 w-4 mr-2" />
@@ -554,7 +551,6 @@ export default function ProjectsPage() {
           </SelectContent>
         </Select>
 
-        {/* Status Filter */}
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-44">
             <Filter className="h-4 w-4 mr-2" />
@@ -603,7 +599,6 @@ export default function ProjectsPage() {
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="space-y-1 flex-1 min-w-0">
-                        {/* Department Badge */}
                         <div className="flex items-center gap-2 mb-1">
                           <div
                             className="w-2 h-2 rounded-full"
@@ -612,6 +607,9 @@ export default function ProjectsPage() {
                           <span className="text-xs text-muted-foreground">
                             {getDepartmentName(project)}
                           </span>
+                          {project.screenCaptureEnabled && (
+                            <Camera className="h-3 w-3 text-muted-foreground" />
+                          )}
                         </div>
                         <CardTitle className="text-lg truncate">{project.name}</CardTitle>
                         <CardDescription className="line-clamp-2">
@@ -688,7 +686,9 @@ export default function ProjectsPage() {
             {searchQuery || statusFilter !== "all" || departmentFilter !== "all"
               ? "Try adjusting your search or filters"
               : hasDepartments
-                ? "Get started by creating your first project"
+                ? canCreateProject
+                  ? "Get started by creating your first project"
+                  : "Ask a company admin to create a project"
                 : "Create a department first, then add projects"}
           </p>
           {canCreateProject && !searchQuery && statusFilter === "all" && departmentFilter === "all" && (

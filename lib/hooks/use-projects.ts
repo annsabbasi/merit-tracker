@@ -78,7 +78,20 @@ export function useProjectStats(id: string) {
     });
 }
 
-// Create project - NOW REQUIRES departmentId
+/**
+ * Create project mutation
+ * 
+ * IMPORTANT: Only users with COMPANY role can create projects.
+ * QC_ADMIN and USER roles will receive a 403 Forbidden error.
+ * 
+ * Required fields:
+ * - name: Project name
+ * - departmentId: Every project MUST belong to a department
+ * 
+ * Optional fields:
+ * - screenCaptureEnabled: Enable screen capture for time tracking
+ * - screenCaptureInterval: Interval in minutes (2-5, default: 3)
+ */
 export function useCreateProject() {
     const queryClient = useQueryClient();
 
@@ -92,7 +105,11 @@ export function useCreateProject() {
             startDate?: string;
             endDate?: string;
             memberIds?: string[];
-            departmentId: string; // REQUIRED
+            departmentId: string; // REQUIRED - Every project must belong to a department
+            // Screen capture settings
+            screenCaptureEnabled?: boolean;
+            screenCaptureInterval?: number;
+            // Legacy field (deprecated, use screenCaptureEnabled)
             screenMonitoringEnabled?: boolean;
         }) => api.post<ProjectWithDepartments>('/projects/create', data),
         onSuccess: (_, variables) => {
@@ -109,8 +126,13 @@ export function useUpdateProject() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ id, data }: { id: string; data: Partial<Project> }) =>
-            api.put<ProjectWithDepartments>(`/projects/${id}`, data),
+        mutationFn: ({ id, data }: {
+            id: string;
+            data: Partial<Project> & {
+                screenCaptureEnabled?: boolean;
+                screenCaptureInterval?: number;
+            }
+        }) => api.put<ProjectWithDepartments>(`/projects/${id}`, data),
         onSuccess: (_, { id }) => {
             queryClient.invalidateQueries({ queryKey: projectsKeys.detail(id) });
             queryClient.invalidateQueries({ queryKey: projectsKeys.all });
@@ -118,7 +140,7 @@ export function useUpdateProject() {
     });
 }
 
-// Delete project
+// Delete project - Only COMPANY role can delete
 export function useDeleteProject() {
     const queryClient = useQueryClient();
 
@@ -131,7 +153,7 @@ export function useDeleteProject() {
     });
 }
 
-// Add members to project
+// Add members to project - COMPANY or Project Lead only
 export function useAddProjectMembers() {
     const queryClient = useQueryClient();
 
@@ -144,7 +166,7 @@ export function useAddProjectMembers() {
     });
 }
 
-// Remove members from project
+// Remove members from project - COMPANY or Project Lead only
 export function useRemoveProjectMembers() {
     const queryClient = useQueryClient();
 
@@ -157,7 +179,7 @@ export function useRemoveProjectMembers() {
     });
 }
 
-// Update member role
+// Update member role - COMPANY or Project Lead only
 export function useUpdateMemberRole() {
     const queryClient = useQueryClient();
 
