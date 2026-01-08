@@ -41,7 +41,7 @@ export function AgentInstallBanner({ showWhenInstalled = false, compact = false 
     }
 
     // Agent is installed and online
-    if (agentStatus?.installed && agentStatus?.online) {
+    if (agentStatus?.installed && agentStatus?.hasOnlineAgent) {
         if (!showWhenInstalled) return null
 
         return (
@@ -52,9 +52,9 @@ export function AgentInstallBanner({ showWhenInstalled = false, compact = false 
                 </AlertTitle>
                 <AlertDescription className="text-green-600 dark:text-green-300">
                     Your screen capture agent is running and ready.
-                    {agentStatus.agent?.machineName && (
+                    {agentStatus.agents?.[0]?.machineName && (
                         <span className="ml-1">
-                            ({agentStatus.agent.machineName})
+                            ({agentStatus.agents[0].machineName})
                         </span>
                     )}
                 </AlertDescription>
@@ -63,7 +63,7 @@ export function AgentInstallBanner({ showWhenInstalled = false, compact = false 
     }
 
     // Agent installed but offline
-    if (agentStatus?.installed && !agentStatus?.online) {
+    if (agentStatus?.installed && !agentStatus?.hasOnlineAgent) {
         return (
             <Alert className="border-yellow-500/50 bg-yellow-500/10">
                 <WifiOff className="h-4 w-4 text-yellow-500" />
@@ -128,51 +128,79 @@ export function AgentInstallBanner({ showWhenInstalled = false, compact = false 
 interface DownloadDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    downloadInfo?: any;
+    downloadInfo?: Array<{
+        platform: string;
+        version: string;
+        downloadUrl: string;
+        releaseDate: string;
+        fileSize: number;
+        checksum: string;
+        releaseNotes: string;
+    }>;
 }
 
 function DownloadDialog({ open, onOpenChange, downloadInfo }: DownloadDialogProps) {
     const [downloading, setDownloading] = useState<string | null>(null)
 
-    const handleDownload = (platform: 'windows' | 'mac' | 'linux') => {
-        if (!downloadInfo?.[platform]?.url) return
+    const handleDownload = (downloadUrl: string, platform: string) => {
+        if (!downloadUrl) {
+            console.error('No download URL available')
+            return
+        }
 
+        console.log('Downloading:', downloadUrl)
         setDownloading(platform)
 
-        // Open download link
-        window.open(downloadInfo[platform].url, '_blank')
+        // Create a temporary anchor element to trigger download
+        const link = document.createElement('a')
+        link.href = downloadUrl
+        link.download = '' // This will use the filename from the URL
+        link.target = '_blank'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
 
         setTimeout(() => {
             setDownloading(null)
         }, 2000)
     }
 
+    // Helper function to format file size
+    const formatFileSize = (bytes: number) => {
+        const mb = bytes / (1024 * 1024)
+        return `~${Math.round(mb)} MB`
+    }
+
+    // Find platform info from downloadInfo array
+    const getPlatformInfo = (platformName: string) => {
+        return downloadInfo?.find(
+            info => info.platform.toUpperCase() === platformName.toUpperCase()
+        )
+    }
+
     const platforms = [
         {
-            id: 'windows' as const,
+            id: 'WINDOWS',
             name: 'Windows',
             icon: Laptop,
             description: 'Windows 10 or later',
-            filename: downloadInfo?.windows?.filename || 'MeritTracker-Setup.exe',
-            size: downloadInfo?.windows?.size || '~85 MB',
         },
         {
-            id: 'mac' as const,
+            id: 'MAC',
             name: 'macOS',
             icon: Apple,
             description: 'macOS 10.15 or later',
-            filename: downloadInfo?.mac?.filename || 'MeritTracker.dmg',
-            size: downloadInfo?.mac?.size || '~78 MB',
         },
         {
-            id: 'linux' as const,
+            id: 'LINUX',
             name: 'Linux',
             icon: Monitor,
             description: 'Ubuntu 20.04 or later',
-            filename: downloadInfo?.linux?.filename || 'MeritTracker.AppImage',
-            size: downloadInfo?.linux?.size || '~72 MB',
         },
     ]
+
+    // Get the current version from the first available download
+    const currentVersion = downloadInfo?.[0]?.version || '1.0.0'
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -192,12 +220,17 @@ function DownloadDialog({ open, onOpenChange, downloadInfo }: DownloadDialogProp
                     {platforms.map((platform) => {
                         const Icon = platform.icon
                         const isDownloading = downloading === platform.id
+                        const platformInfo = getPlatformInfo(platform.id)
 
                         return (
                             <Card
                                 key={platform.id}
                                 className="cursor-pointer hover:border-primary transition-colors"
-                                onClick={() => handleDownload(platform.id)}
+                                onClick={() => {
+                                    if (platformInfo?.downloadUrl) {
+                                        handleDownload(platformInfo.downloadUrl, platform.id)
+                                    }
+                                }}
                             >
                                 <CardContent className="p-4 text-center">
                                     <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -207,13 +240,21 @@ function DownloadDialog({ open, onOpenChange, downloadInfo }: DownloadDialogProp
                                     <p className="text-xs text-muted-foreground mt-1">
                                         {platform.description}
                                     </p>
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        {platform.size}
-                                    </p>
+                                    {platformInfo && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            {formatFileSize(platformInfo.fileSize)}
+                                        </p>
+                                    )}
                                     <Button
                                         size="sm"
                                         className="mt-3 w-full gap-2"
-                                        disabled={isDownloading}
+                                        disabled={isDownloading || !platformInfo?.downloadUrl}
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            if (platformInfo?.downloadUrl) {
+                                                handleDownload(platformInfo.downloadUrl, platform.id)
+                                            }
+                                        }}
                                     >
                                         {isDownloading ? (
                                             <>
@@ -233,17 +274,15 @@ function DownloadDialog({ open, onOpenChange, downloadInfo }: DownloadDialogProp
                     })}
                 </div>
 
-                {downloadInfo?.currentVersion && (
-                    <div className="flex items-center justify-between text-sm text-muted-foreground border-t pt-4">
-                        <span>Version {downloadInfo.currentVersion}</span>
-                        {downloadInfo.releaseNotes && (
-                            <Button variant="link" size="sm" className="gap-1 p-0 h-auto">
-                                Release Notes
-                                <ExternalLink className="h-3 w-3" />
-                            </Button>
-                        )}
-                    </div>
-                )}
+                <div className="flex items-center justify-between text-sm text-muted-foreground border-t pt-4">
+                    <span>Version {currentVersion}</span>
+                    {downloadInfo?.[0]?.releaseNotes && (
+                        <Button variant="link" size="sm" className="gap-1 p-0 h-auto">
+                            Release Notes
+                            <ExternalLink className="h-3 w-3" />
+                        </Button>
+                    )}
+                </div>
 
                 <div className="bg-muted/50 rounded-lg p-4 space-y-2">
                     <h4 className="font-medium text-sm flex items-center gap-2">
