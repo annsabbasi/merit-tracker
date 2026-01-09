@@ -279,7 +279,7 @@ export default function DepartmentsPage() {
                 </div>
 
                 {/* Date Range */}
-                <div className="grid grid-cols-2 gap-4">
+                {/* <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Start Date</Label>
                     <Input
@@ -296,7 +296,7 @@ export default function DepartmentsPage() {
                       onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
                     />
                   </div>
-                </div>
+                </div> */}
 
                 {/* Members Selection */}
                 <div className="space-y-2">
