@@ -7,22 +7,15 @@ import {
     useUpdateAgent,
     useDeactivateAgent,
     useDeleteAgent,
+    useAgentDownloadInfo,
 } from "@/lib/hooks/use-desktop-agent"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
+import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Slider } from "@/components/ui/slider"
-import { Switch } from "@/components/ui/switch"
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from "@/components/ui/dialog"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -44,63 +37,67 @@ import {
     Monitor,
     Laptop,
     Apple,
-    Settings,
+    CheckCircle2,
+    XCircle,
+    MoreVertical,
     Trash2,
     Power,
-    PowerOff,
-    MoreVertical,
-    CheckCircle2,
-    WifiOff,
+    Settings,
+    Download,
     Loader2,
-    Image as ImageIcon,
-    MonitorSmartphone,
+    Clock,
+    HardDrive,
+    Wifi,
+    WifiOff,
 } from "lucide-react"
 import { toast } from "sonner"
-import { format, formatDistanceToNow } from "date-fns"
 import type { DesktopAgent, Platform } from "@/lib/types/screen-capture"
+import { DownloadDialog } from "./agent-install-banner"
 
-interface AgentSettingsProps {
-    className?: string
-}
-
-export function AgentSettings({ className }: AgentSettingsProps) {
+export function AgentSettings() {
     const [selectedAgent, setSelectedAgent] = useState<DesktopAgent | null>(null)
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+    const [isDeactivateOpen, setIsDeactivateOpen] = useState(false)
     const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+    const [isDownloadOpen, setIsDownloadOpen] = useState(false)
 
     const { data: agents, isLoading } = useMyAgents()
+    const { data: downloadInfo } = useAgentDownloadInfo()
     const updateAgent = useUpdateAgent()
     const deactivateAgent = useDeactivateAgent()
     const deleteAgent = useDeleteAgent()
 
-    const platformIcons: Record<Platform, any> = {
-        WINDOWS: Laptop,
-        MAC: Apple,
-        LINUX: Monitor,
-    }
-
-    const handleUpdateSettings = async (quality: number, captureAllMonitors: boolean) => {
-        if (!selectedAgent) return
-
+    const handleUpdateQuality = async (agentId: string, quality: number) => {
         try {
             await updateAgent.mutateAsync({
-                id: selectedAgent.id,
-                data: {
-                    captureQuality: quality,
-                    captureAllMonitors,
-                },
+                id: agentId,
+                data: { captureQuality: quality },
             })
-            toast.success("Agent settings updated")
-            setIsSettingsOpen(false)
+            toast.success("Capture quality updated")
         } catch (error) {
             toast.error("Failed to update settings")
         }
     }
 
-    const handleDeactivate = async (agent: DesktopAgent) => {
+    const handleToggleMultiMonitor = async (agentId: string, enabled: boolean) => {
         try {
-            await deactivateAgent.mutateAsync(agent.id)
+            await updateAgent.mutateAsync({
+                id: agentId,
+                data: { captureAllMonitors: enabled },
+            })
+            toast.success(enabled ? "Multi-monitor capture enabled" : "Multi-monitor capture disabled")
+        } catch (error) {
+            toast.error("Failed to update settings")
+        }
+    }
+
+    const handleDeactivate = async () => {
+        if (!selectedAgent) return
+
+        try {
+            await deactivateAgent.mutateAsync(selectedAgent.id)
             toast.success("Agent deactivated")
+            setIsDeactivateOpen(false)
+            setSelectedAgent(null)
         } catch (error) {
             toast.error("Failed to deactivate agent")
         }
@@ -111,24 +108,46 @@ export function AgentSettings({ className }: AgentSettingsProps) {
 
         try {
             await deleteAgent.mutateAsync(selectedAgent.id)
-            toast.success("Agent deleted")
+            toast.success("Agent removed")
             setIsDeleteOpen(false)
             setSelectedAgent(null)
         } catch (error) {
-            toast.error("Failed to delete agent")
+            toast.error("Failed to remove agent")
         }
+    }
+
+    const platformIcons: Record<Platform, any> = {
+        WINDOWS: Laptop,
+        MAC: Apple,
+        LINUX: Monitor,
+    }
+
+    const formatLastSeen = (dateString?: string) => {
+        if (!dateString) return "Never"
+
+        const date = new Date(dateString)
+        const now = new Date()
+        const diff = now.getTime() - date.getTime()
+        const minutes = Math.floor(diff / 60000)
+
+        if (minutes < 1) return "Just now"
+        if (minutes < 60) return `${minutes}m ago`
+        if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`
+        return date.toLocaleDateString()
     }
 
     if (isLoading) {
         return (
-            <Card className={className}>
+            <Card>
                 <CardHeader>
-                    <Skeleton className="h-6 w-48" />
-                    <Skeleton className="h-4 w-64" />
+                    <CardTitle className="flex items-center gap-2">
+                        <Monitor className="h-5 w-5" />
+                        Desktop Agents
+                    </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {[...Array(2)].map((_, i) => (
-                        <Skeleton key={i} className="h-24" />
+                        <Skeleton key={i} className="h-32" />
                     ))}
                 </CardContent>
             </Card>
@@ -137,86 +156,91 @@ export function AgentSettings({ className }: AgentSettingsProps) {
 
     return (
         <>
-            <Card className={className}>
+            <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <MonitorSmartphone className="h-5 w-5" />
-                        My Desktop Agents
-                    </CardTitle>
-                    <CardDescription>
-                        Manage your registered desktop agents for screen capture
-                    </CardDescription>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="flex items-center gap-2">
+                                <Monitor className="h-5 w-5" />
+                                Desktop Agents
+                            </CardTitle>
+                            <CardDescription>
+                                Manage your installed screen capture agents
+                            </CardDescription>
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsDownloadOpen(true)}
+                        >
+                            <Download className="h-4 w-4 mr-2" />
+                            Add Device
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     {agents && agents.length > 0 ? (
                         <div className="space-y-4">
                             {agents.map((agent) => {
                                 const PlatformIcon = platformIcons[agent.platform] || Monitor
-                                const isOnline = agent.isOnline
 
                                 return (
                                     <div
                                         key={agent.id}
-                                        className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${isOnline
-                                                ? "border-green-200 bg-green-50/50"
-                                                : "border-gray-200"
+                                        className={`p-4 rounded-lg border ${agent.isOnline
+                                            ? "border-green-500/30 bg-green-500/5"
+                                            : "border-muted bg-muted/20"
                                             }`}
                                     >
-                                        <div className="flex items-center gap-4">
-                                            <div
-                                                className={`p-3 rounded-lg ${isOnline ? "bg-green-100" : "bg-muted"
-                                                    }`}
-                                            >
-                                                <PlatformIcon
-                                                    className={`h-6 w-6 ${isOnline ? "text-green-600" : "text-muted-foreground"
-                                                        }`}
-                                                />
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <p className="font-medium">
-                                                        {agent.machineName || "Unknown Device"}
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex items-start gap-4">
+                                                <div className={`p-3 rounded-lg ${agent.isOnline
+                                                    ? "bg-green-500/10"
+                                                    : "bg-muted"
+                                                    }`}>
+                                                    <PlatformIcon className={`h-6 w-6 ${agent.isOnline
+                                                        ? "text-green-500"
+                                                        : "text-muted-foreground"
+                                                        }`} />
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className="font-semibold">
+                                                            {agent.machineName || "Unknown Device"}
+                                                        </h3>
+                                                        {agent.isOnline ? (
+                                                            <Badge className="bg-green-500 text-white">
+                                                                <Wifi className="h-3 w-3 mr-1" />
+                                                                Online
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="secondary">
+                                                                <WifiOff className="h-3 w-3 mr-1" />
+                                                                Offline
+                                                            </Badge>
+                                                        )}
+                                                        {!agent.isActive && (
+                                                            <Badge variant="destructive">
+                                                                Deactivated
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-sm text-muted-foreground mt-1">
+                                                        {agent.platform} • v{agent.agentVersion}
                                                     </p>
-                                                    {isOnline ? (
-                                                        <Badge className="bg-green-500 text-white">
-                                                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                                                            Online
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge variant="secondary">
-                                                            <WifiOff className="h-3 w-3 mr-1" />
-                                                            Offline
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                                                    <span>{agent.platform}</span>
-                                                    <span>•</span>
-                                                    <span>v{agent.agentVersion}</span>
-                                                    <span>•</span>
-                                                    <span>
-                                                        {agent.lastHeartbeat
-                                                            ? `Last seen ${formatDistanceToNow(
-                                                                new Date(agent.lastHeartbeat),
-                                                                { addSuffix: true }
-                                                            )}`
-                                                            : "Never connected"}
-                                                    </span>
+                                                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                                                        <span className="flex items-center gap-1">
+                                                            <Clock className="h-3 w-3" />
+                                                            Last seen: {formatLastSeen(agent.lastHeartbeat)}
+                                                        </span>
+                                                        <span className="flex items-center gap-1">
+                                                            <HardDrive className="h-3 w-3" />
+                                                            ID: {agent.machineId.slice(0, 8)}...
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => {
-                                                    setSelectedAgent(agent)
-                                                    setIsSettingsOpen(true)
-                                                }}
-                                            >
-                                                <Settings className="h-4 w-4" />
-                                            </Button>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
                                                     <Button variant="ghost" size="icon">
@@ -224,23 +248,17 @@ export function AgentSettings({ className }: AgentSettingsProps) {
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem
-                                                        onClick={() => {
-                                                            setSelectedAgent(agent)
-                                                            setIsSettingsOpen(true)
-                                                        }}
-                                                    >
-                                                        <Settings className="h-4 w-4 mr-2" />
-                                                        Settings
-                                                    </DropdownMenuItem>
-                                                    {agent.isActive && (
+                                                    {agent.isActive ? (
                                                         <DropdownMenuItem
-                                                            onClick={() => handleDeactivate(agent)}
+                                                            onClick={() => {
+                                                                setSelectedAgent(agent)
+                                                                setIsDeactivateOpen(true)
+                                                            }}
                                                         >
-                                                            <PowerOff className="h-4 w-4 mr-2" />
+                                                            <Power className="h-4 w-4 mr-2" />
                                                             Deactivate
                                                         </DropdownMenuItem>
-                                                    )}
+                                                    ) : null}
                                                     <DropdownMenuSeparator />
                                                     <DropdownMenuItem
                                                         className="text-destructive"
@@ -250,11 +268,60 @@ export function AgentSettings({ className }: AgentSettingsProps) {
                                                         }}
                                                     >
                                                         <Trash2 className="h-4 w-4 mr-2" />
-                                                        Delete
+                                                        Remove
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </div>
+
+                                        {/* Settings */}
+                                        {agent.isActive && (
+                                            <div className="mt-4 pt-4 border-t space-y-4">
+                                                {/* Capture Quality */}
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label className="text-sm">
+                                                            Capture Quality
+                                                        </Label>
+                                                        <span className="text-sm text-muted-foreground">
+                                                            {agent.captureQuality}%
+                                                        </span>
+                                                    </div>
+                                                    <Slider
+                                                        value={[agent.captureQuality]}
+                                                        min={30}
+                                                        max={100}
+                                                        step={10}
+                                                        onValueCommit={(value) =>
+                                                            handleUpdateQuality(agent.id, value[0])
+                                                        }
+                                                        disabled={updateAgent.isPending}
+                                                    />
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Lower quality = smaller file sizes
+                                                    </p>
+                                                </div>
+
+                                                {/* Multi-Monitor */}
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <Label className="text-sm">
+                                                            Capture All Monitors
+                                                        </Label>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Screenshot all connected displays
+                                                        </p>
+                                                    </div>
+                                                    <Switch
+                                                        checked={agent.captureAllMonitors}
+                                                        onCheckedChange={(checked) =>
+                                                            handleToggleMultiMonitor(agent.id, checked)
+                                                        }
+                                                        disabled={updateAgent.isPending}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )
                             })}
@@ -262,34 +329,58 @@ export function AgentSettings({ className }: AgentSettingsProps) {
                     ) : (
                         <div className="text-center py-8">
                             <Monitor className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
-                            <p className="mt-4 text-muted-foreground">
-                                No desktop agents registered yet
+                            <h3 className="mt-4 font-medium">No agents installed</h3>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                Install the desktop app to enable screen capture
                             </p>
-                            <p className="text-sm text-muted-foreground mt-2">
-                                Download and install the Merit Tracker desktop app to get started
-                            </p>
+                            <Button
+                                className="mt-4"
+                                onClick={() => setIsDownloadOpen(true)}
+                            >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download Desktop App
+                            </Button>
                         </div>
                     )}
                 </CardContent>
             </Card>
 
-            {/* Settings Dialog */}
-            <AgentSettingsDialog
-                agent={selectedAgent}
-                open={isSettingsOpen}
-                onOpenChange={setIsSettingsOpen}
-                onSave={handleUpdateSettings}
-                isPending={updateAgent.isPending}
-            />
+            {/* Deactivate Dialog */}
+            <AlertDialog open={isDeactivateOpen} onOpenChange={setIsDeactivateOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Deactivate Agent?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will stop screen capture on {selectedAgent?.machineName || "this device"}.
+                            You can reactivate it by signing in again on that device.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeactivate}
+                            disabled={deactivateAgent.isPending}
+                        >
+                            {deactivateAgent.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                "Deactivate"
+                            )}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
-            {/* Delete Confirmation Dialog */}
+            {/* Delete Dialog */}
             <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Desktop Agent?</AlertDialogTitle>
+                        <AlertDialogTitle className="text-destructive">
+                            Remove Agent?
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                            This will remove the agent "{selectedAgent?.machineName}" from your account.
-                            You'll need to re-register if you want to use it again.
+                            This will permanently remove {selectedAgent?.machineName || "this device"}
+                            from your account. You'll need to reinstall and sign in again to use it.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -300,140 +391,21 @@ export function AgentSettings({ className }: AgentSettingsProps) {
                             disabled={deleteAgent.isPending}
                         >
                             {deleteAgent.isPending ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Deleting...
-                                </>
+                                <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
-                                <>
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete Agent
-                                </>
+                                "Remove"
                             )}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Download Dialog */}
+            <DownloadDialog
+                open={isDownloadOpen}
+                onOpenChange={setIsDownloadOpen}
+                downloadInfo={downloadInfo}
+            />
         </>
-    )
-}
-
-interface AgentSettingsDialogProps {
-    agent: DesktopAgent | null
-    open: boolean
-    onOpenChange: (open: boolean) => void
-    onSave: (quality: number, captureAllMonitors: boolean) => void
-    isPending: boolean
-}
-
-function AgentSettingsDialog({
-    agent,
-    open,
-    onOpenChange,
-    onSave,
-    isPending,
-}: AgentSettingsDialogProps) {
-    const [quality, setQuality] = useState(agent?.captureQuality || 80)
-    const [captureAllMonitors, setCaptureAllMonitors] = useState(
-        agent?.captureAllMonitors ?? false
-    )
-
-    // Update state when agent changes
-    useState(() => {
-        if (agent) {
-            setQuality(agent.captureQuality || 80)
-            setCaptureAllMonitors(agent.captureAllMonitors ?? false)
-        }
-    })
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <Settings className="h-5 w-5" />
-                        Agent Settings
-                    </DialogTitle>
-                    <DialogDescription>
-                        Configure capture settings for {agent?.machineName || "this agent"}
-                    </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-6 py-4">
-                    {/* Screenshot Quality */}
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <Label>Screenshot Quality</Label>
-                                <p className="text-sm text-muted-foreground">
-                                    Higher quality = larger file sizes
-                                </p>
-                            </div>
-                            <span className="text-lg font-semibold">{quality}%</span>
-                        </div>
-                        <Slider
-                            value={[quality]}
-                            onValueChange={([v]) => setQuality(v)}
-                            min={30}
-                            max={100}
-                            step={5}
-                            className="w-full"
-                        />
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Low (30%)</span>
-                            <span>Medium (60%)</span>
-                            <span>High (100%)</span>
-                        </div>
-                    </div>
-
-                    {/* Multi-Monitor Capture */}
-                    <div className="flex items-center justify-between p-4 rounded-lg border">
-                        <div className="flex items-center gap-3">
-                            <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                            <div>
-                                <Label>Capture All Monitors</Label>
-                                <p className="text-sm text-muted-foreground">
-                                    Capture screenshots from all connected displays
-                                </p>
-                            </div>
-                        </div>
-                        <Switch
-                            checked={captureAllMonitors}
-                            onCheckedChange={setCaptureAllMonitors}
-                        />
-                    </div>
-
-                    {/* Info Box */}
-                    <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
-                        <p className="font-medium text-foreground mb-2">About Screen Capture</p>
-                        <ul className="space-y-1">
-                            <li>• Screenshots are captured at random intervals (2-5 min)</li>
-                            <li>• Captures only occur during active time tracking</li>
-                            <li>• Screenshots are stored securely for 60 days</li>
-                            <li>• Changes take effect on the next capture</li>
-                        </ul>
-                    </div>
-                </div>
-
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        Cancel
-                    </Button>
-                    <Button
-                        onClick={() => onSave(quality, captureAllMonitors)}
-                        disabled={isPending}
-                    >
-                        {isPending ? (
-                            <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Saving...
-                            </>
-                        ) : (
-                            "Save Changes"
-                        )}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
     )
 }
