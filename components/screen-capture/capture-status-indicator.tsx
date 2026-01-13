@@ -1,8 +1,7 @@
 // src/components/screen-capture/capture-status-indicator.tsx
 "use client"
 
-import { useEffect, useState } from "react"
-import { useAgentCheckInstalled } from "@/lib/hooks/use-desktop-agent"
+import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 import {
     Tooltip,
@@ -10,193 +9,236 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip"
-import {
-    Camera,
-    CameraOff,
-    Loader2,
-    CheckCircle2,
-    AlertTriangle,
-} from "lucide-react"
+import { Camera, CameraOff, Shield, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface CaptureStatusIndicatorProps {
-    isCapturing?: boolean;
-    showLabel?: boolean;
-    className?: string;
+    isCapturing: boolean
+    isOnline?: boolean
+    nextCaptureIn?: number // seconds until next capture
+    className?: string
 }
 
 export function CaptureStatusIndicator({
-    isCapturing = false,
-    showLabel = true,
+    isCapturing,
+    isOnline = true,
+    nextCaptureIn,
     className,
 }: CaptureStatusIndicatorProps) {
-    const { data: agentStatus, isLoading } = useAgentCheckInstalled()
-    const [pulse, setPulse] = useState(false)
+    const [countdown, setCountdown] = useState(nextCaptureIn)
+    const [pulseColor, setPulseColor] = useState("bg-green-500")
 
-    // Pulse effect when capturing
     useEffect(() => {
-        if (!isCapturing) {
-            setPulse(false)
-            return
+        if (nextCaptureIn !== undefined) {
+            setCountdown(nextCaptureIn)
         }
+    }, [nextCaptureIn])
+
+    useEffect(() => {
+        if (countdown === undefined || countdown <= 0) return
+
+        const timer = setInterval(() => {
+            setCountdown((prev) => (prev !== undefined && prev > 0 ? prev - 1 : prev))
+        }, 1000)
+
+        return () => clearInterval(timer)
+    }, [countdown])
+
+    // Pulse animation when capturing
+    useEffect(() => {
+        if (!isCapturing) return
 
         const interval = setInterval(() => {
-            setPulse(p => !p)
-        }, 2000)
+            setPulseColor((prev) =>
+                prev === "bg-green-500" ? "bg-green-400" : "bg-green-500"
+            )
+        }, 1000)
 
         return () => clearInterval(interval)
     }, [isCapturing])
 
-    if (isLoading) {
-        return (
-            <Badge variant="secondary" className={cn("gap-1", className)}>
-                <Loader2 className="h-3 w-3 animate-spin" />
-                {showLabel && "Checking..."}
-            </Badge>
-        )
-    }
-
-    // Agent not installed
-    if (!agentStatus?.installed) {
-        return (
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <Badge
-                            variant="secondary"
-                            className={cn("gap-1 cursor-help", className)}
-                        >
-                            <CameraOff className="h-3 w-3" />
-                            {showLabel && "No Agent"}
-                        </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p>Desktop agent not installed</p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-        )
-    }
-
-    // Agent offline
-    if (!agentStatus.online) {
+    if (!isOnline) {
         return (
             <TooltipProvider>
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <Badge
                             variant="outline"
-                            className={cn("gap-1 text-yellow-500 border-yellow-500 cursor-help", className)}
+                            className={cn(
+                                "flex items-center gap-1.5 text-orange-600 border-orange-300 bg-orange-50",
+                                className
+                            )}
                         >
                             <AlertTriangle className="h-3 w-3" />
-                            {showLabel && "Agent Offline"}
+                            <span>Agent Offline</span>
                         </Badge>
                     </TooltipTrigger>
                     <TooltipContent>
-                        <p>Please start the Merit Tracker Desktop app</p>
+                        <p>Desktop agent is offline. Screenshots are not being captured.</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Please ensure the Merit Tracker app is running.
+                        </p>
                     </TooltipContent>
                 </Tooltip>
             </TooltipProvider>
         )
     }
 
-    // Actively capturing
-    if (isCapturing) {
+    if (!isCapturing) {
         return (
             <TooltipProvider>
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <Badge
+                            variant="outline"
                             className={cn(
-                                "gap-1 bg-green-500 text-white cursor-help transition-all",
-                                pulse && "bg-green-600",
+                                "flex items-center gap-1.5 text-muted-foreground",
                                 className
                             )}
                         >
-                            <Camera className={cn("h-3 w-3", pulse && "animate-pulse")} />
-                            {showLabel && "Capturing"}
+                            <CameraOff className="h-3 w-3" />
+                            <span>Capture Paused</span>
                         </Badge>
                     </TooltipTrigger>
                     <TooltipContent>
-                        <p>Screenshots are being captured automatically</p>
+                        <p>Screen capture is paused. Start tracking time to begin capturing.</p>
                     </TooltipContent>
                 </Tooltip>
             </TooltipProvider>
         )
     }
 
-    // Agent ready but not capturing
     return (
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
                     <Badge
                         variant="outline"
-                        className={cn("gap-1 text-green-500 border-green-500 cursor-help", className)}
+                        className={cn(
+                            "flex items-center gap-1.5 text-green-600 border-green-300 bg-green-50",
+                            className
+                        )}
                     >
-                        <CheckCircle2 className="h-3 w-3" />
-                        {showLabel && "Ready"}
+                        <div className="relative">
+                            <Camera className="h-3 w-3" />
+                            <span className={cn(
+                                "absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full transition-colors duration-500",
+                                pulseColor
+                            )} />
+                        </div>
+                        <span>Capturing</span>
+                        {countdown !== undefined && countdown > 0 && (
+                            <span className="text-xs opacity-75">
+                                ({Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')})
+                            </span>
+                        )}
                     </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
-                    <p>Agent connected and ready for screen capture</p>
+                    <div className="space-y-1">
+                        <p className="flex items-center gap-2">
+                            <Shield className="h-3 w-3 text-green-500" />
+                            Screen capture is active
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Screenshots are captured at random intervals (2-5 min)
+                        </p>
+                        {countdown !== undefined && countdown > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                                Next capture in ~{Math.floor(countdown / 60)}m {countdown % 60}s
+                            </p>
+                        )}
+                    </div>
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>
     )
 }
 
-// Mini version for compact spaces
-export function CaptureStatusDot({
-    isCapturing = false,
+// Larger status card variant for dashboards
+interface CaptureStatusCardProps {
+    isCapturing: boolean
+    isOnline?: boolean
+    screenshotCount?: number
+    lastCaptureTime?: string
+    className?: string
+}
+
+export function CaptureStatusCard({
+    isCapturing,
+    isOnline = true,
+    screenshotCount = 0,
+    lastCaptureTime,
     className,
-}: {
-    isCapturing?: boolean;
-    className?: string;
-}) {
-    const { data: agentStatus } = useAgentCheckInstalled()
-    const [pulse, setPulse] = useState(false)
+}: CaptureStatusCardProps) {
+    const formatLastCapture = (time?: string) => {
+        if (!time) return "Never"
+        const date = new Date(time)
+        const now = new Date()
+        const diffMs = now.getTime() - date.getTime()
+        const diffMins = Math.floor(diffMs / 60000)
 
-    useEffect(() => {
-        if (!isCapturing) {
-            setPulse(false)
-            return
-        }
-
-        const interval = setInterval(() => {
-            setPulse(p => !p)
-        }, 1500)
-
-        return () => clearInterval(interval)
-    }, [isCapturing])
-
-    const getStatusColor = () => {
-        if (!agentStatus?.installed) return "bg-gray-400"
-        if (!agentStatus.online) return "bg-yellow-400"
-        if (isCapturing) return "bg-green-500"
-        return "bg-green-400"
+        if (diffMins < 1) return "Just now"
+        if (diffMins < 60) return `${diffMins}m ago`
+        if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`
+        return date.toLocaleDateString()
     }
 
     return (
-        <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <div
-                        className={cn(
-                            "w-2 h-2 rounded-full transition-all cursor-help",
-                            getStatusColor(),
-                            isCapturing && pulse && "scale-125",
-                            className
+        <div className={cn(
+            "p-4 rounded-lg border",
+            isCapturing && isOnline
+                ? "border-green-200 bg-green-50"
+                : !isOnline
+                    ? "border-orange-200 bg-orange-50"
+                    : "border-gray-200 bg-gray-50",
+            className
+        )}>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className={cn(
+                        "p-2 rounded-full",
+                        isCapturing && isOnline
+                            ? "bg-green-500"
+                            : !isOnline
+                                ? "bg-orange-500"
+                                : "bg-gray-400"
+                    )}>
+                        {isCapturing && isOnline ? (
+                            <Camera className="h-5 w-5 text-white" />
+                        ) : !isOnline ? (
+                            <AlertTriangle className="h-5 w-5 text-white" />
+                        ) : (
+                            <CameraOff className="h-5 w-5 text-white" />
                         )}
-                    />
-                </TooltipTrigger>
-                <TooltipContent>
-                    {!agentStatus?.installed && <p>Agent not installed</p>}
-                    {agentStatus?.installed && !agentStatus.online && <p>Agent offline</p>}
-                    {agentStatus?.installed && agentStatus.online && !isCapturing && <p>Ready for capture</p>}
-                    {agentStatus?.installed && agentStatus.online && isCapturing && <p>Capturing screenshots</p>}
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
+                    </div>
+                    <div>
+                        <p className={cn(
+                            "font-medium",
+                            isCapturing && isOnline
+                                ? "text-green-700"
+                                : !isOnline
+                                    ? "text-orange-700"
+                                    : "text-gray-600"
+                        )}>
+                            {isCapturing && isOnline
+                                ? "Screen Capture Active"
+                                : !isOnline
+                                    ? "Agent Offline"
+                                    : "Capture Paused"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                            {isOnline
+                                ? `Last capture: ${formatLastCapture(lastCaptureTime)}`
+                                : "Desktop app not connected"}
+                        </p>
+                    </div>
+                </div>
+                <div className="text-right">
+                    <p className="text-2xl font-bold">{screenshotCount}</p>
+                    <p className="text-xs text-muted-foreground">screenshots today</p>
+                </div>
+            </div>
+        </div>
     )
 }

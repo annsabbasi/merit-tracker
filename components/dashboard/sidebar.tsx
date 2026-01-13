@@ -17,6 +17,7 @@ import {
   Building2,
   Copy,
   Monitor,
+  GalleryHorizontal,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -29,6 +30,7 @@ const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Department", href: "/dashboard/departments", icon: Users },
   { name: "Projects", href: "/dashboard/projects", icon: FolderKanban },
+  { name: "Screen Monitor", href: "/dashboard/screen-monitoring", icon: GalleryHorizontal },
   { name: "SOPs", href: "/dashboard/sops", icon: FileVideo },
   { name: "Manage", href: "/dashboard/manage", icon: Settings },
   { name: "Notifications", href: "/dashboard/notifications", icon: Bell },

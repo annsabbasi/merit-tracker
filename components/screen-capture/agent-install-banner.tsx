@@ -13,7 +13,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
-import { Card, CardContent } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
     Download,
     Monitor,
@@ -21,17 +21,22 @@ import {
     AlertTriangle,
     Laptop,
     Apple,
-    Loader2,
     ExternalLink,
+    Copy,
+    Check,
+    Loader2,
     WifiOff,
 } from "lucide-react"
+import { toast } from "sonner"
+import { cn } from "@/lib/utils"
+import type { AgentDownloadInfo, Platform } from "@/lib/types/screen-capture"
 
 interface AgentInstallBannerProps {
-    showWhenInstalled?: boolean;
-    compact?: boolean;
+    className?: string
+    showWhenInstalled?: boolean
 }
 
-export function AgentInstallBanner({ showWhenInstalled = false, compact = false }: AgentInstallBannerProps) {
+export function AgentInstallBanner({ className, showWhenInstalled = false }: AgentInstallBannerProps) {
     const [isDownloadOpen, setIsDownloadOpen] = useState(false)
     const { data: agentStatus, isLoading } = useAgentCheckInstalled()
     const { data: downloadInfo } = useAgentDownloadInfo()
@@ -40,77 +45,61 @@ export function AgentInstallBanner({ showWhenInstalled = false, compact = false 
         return null
     }
 
-    // Agent is installed and online
-    if (agentStatus?.installed && agentStatus?.hasOnlineAgent) {
+    // Agent is installed and online - optionally show success state
+    if (agentStatus?.installed && agentStatus?.online) {
         if (!showWhenInstalled) return null
 
         return (
-            <Alert className="border-green-500/50 bg-green-500/10">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <AlertTitle className="text-green-700 dark:text-green-400">
-                    Desktop Agent Connected
-                </AlertTitle>
-                <AlertDescription className="text-green-600 dark:text-green-300">
-                    Your screen capture agent is running and ready.
-                    {agentStatus.agents?.[0]?.machineName && (
-                        <span className="ml-1">
-                            ({agentStatus.agents[0].machineName})
-                        </span>
-                    )}
+            <Alert className={cn("border-green-200 bg-green-50", className)}>
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <AlertTitle className="text-green-800">Desktop Agent Connected</AlertTitle>
+                <AlertDescription className="text-green-700">
+                    Your Merit Tracker desktop agent is running and capturing screenshots.
                 </AlertDescription>
             </Alert>
         )
     }
 
-    // Agent installed but offline
-    if (agentStatus?.installed && !agentStatus?.hasOnlineAgent) {
+    // Agent is installed but offline
+    if (agentStatus?.installed && !agentStatus?.online) {
         return (
-            <Alert className="border-yellow-500/50 bg-yellow-500/10">
-                <WifiOff className="h-4 w-4 text-yellow-500" />
-                <AlertTitle className="text-yellow-700 dark:text-yellow-400">
-                    Desktop Agent Offline
-                </AlertTitle>
-                <AlertDescription className="text-yellow-600 dark:text-yellow-300">
-                    Your desktop agent is installed but not running. Please start the Merit Tracker Desktop app to enable screen capture.
+            <Alert className={cn("border-orange-200 bg-orange-50", className)}>
+                <WifiOff className="h-4 w-4 text-orange-600" />
+                <AlertTitle className="text-orange-800">Desktop Agent Offline</AlertTitle>
+                <AlertDescription className="text-orange-700 flex items-center justify-between">
+                    <span>
+                        The Merit Tracker desktop app is installed but not running. Please start the app to enable screen capture.
+                    </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="ml-4 border-orange-300 text-orange-700 hover:bg-orange-100"
+                        onClick={() => setIsDownloadOpen(true)}
+                    >
+                        Need Help?
+                    </Button>
                 </AlertDescription>
             </Alert>
         )
     }
 
     // Agent not installed
-    if (compact) {
-        return (
-            <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsDownloadOpen(true)}
-                className="gap-2"
-            >
-                <Download className="h-4 w-4" />
-                Install Desktop Agent
-            </Button>
-        )
-    }
-
     return (
         <>
-            <Alert className="border-blue-500/50 bg-blue-500/10">
-                <Monitor className="h-4 w-4 text-blue-500" />
-                <AlertTitle className="text-blue-700 dark:text-blue-400">
-                    Desktop Agent Required
-                </AlertTitle>
-                <AlertDescription className="text-blue-600 dark:text-blue-300">
-                    <p className="mb-3">
-                        Some projects require screen monitoring during time tracking.
-                        Install the Merit Tracker Desktop app to enable this feature.
-                    </p>
+            <Alert className={cn("border-blue-200 bg-blue-50", className)}>
+                <AlertTriangle className="h-4 w-4 text-blue-600" />
+                <AlertTitle className="text-blue-800">Desktop Agent Required</AlertTitle>
+                <AlertDescription className="text-blue-700 flex items-center justify-between">
+                    <span>
+                        Install the Merit Tracker desktop app to enable screen capture for time tracking verification.
+                    </span>
                     <Button
                         size="sm"
+                        className="ml-4"
                         onClick={() => setIsDownloadOpen(true)}
-                        className="gap-2"
                     >
-                        <Download className="h-4 w-4" />
-                        Download Desktop App
+                        <Download className="h-4 w-4 mr-2" />
+                        Download App
                     </Button>
                 </AlertDescription>
             </Alert>
@@ -124,181 +113,172 @@ export function AgentInstallBanner({ showWhenInstalled = false, compact = false 
     )
 }
 
-// Download Dialog Component
 interface DownloadDialogProps {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    downloadInfo?: Array<{
-        platform: string;
-        version: string;
-        downloadUrl: string;
-        releaseDate: string;
-        fileSize: number;
-        checksum: string;
-        releaseNotes: string;
-    }>;
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    downloadInfo?: AgentDownloadInfo
 }
 
-function DownloadDialog({ open, onOpenChange, downloadInfo }: DownloadDialogProps) {
-    const [downloading, setDownloading] = useState<string | null>(null)
+export function DownloadDialog({ open, onOpenChange, downloadInfo }: DownloadDialogProps) {
+    const [copiedToken, setCopiedToken] = useState(false)
+    const [selectedPlatform, setSelectedPlatform] = useState<Platform>("WINDOWS")
 
-    const handleDownload = (downloadUrl: string, platform: string) => {
-        if (!downloadUrl) {
-            console.error('No download URL available')
-            return
-        }
-
-        console.log('Downloading:', downloadUrl)
-        setDownloading(platform)
-
-        // Create a temporary anchor element to trigger download
-        const link = document.createElement('a')
-        link.href = downloadUrl
-        link.download = '' // This will use the filename from the URL
-        link.target = '_blank'
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-
-        setTimeout(() => {
-            setDownloading(null)
-        }, 2000)
-    }
-
-    // Helper function to format file size
-    const formatFileSize = (bytes: number) => {
-        const mb = bytes / (1024 * 1024)
-        return `~${Math.round(mb)} MB`
-    }
-
-    // Find platform info from downloadInfo array
-    const getPlatformInfo = (platformName: string) => {
-        return downloadInfo?.find(
-            info => info.platform.toUpperCase() === platformName.toUpperCase()
-        )
-    }
-
-    const platforms = [
-        {
-            id: 'WINDOWS',
-            name: 'Windows',
-            icon: Laptop,
-            description: 'Windows 10 or later',
-        },
-        {
-            id: 'MAC',
-            name: 'macOS',
-            icon: Apple,
-            description: 'macOS 10.15 or later',
-        },
-        {
-            id: 'LINUX',
-            name: 'Linux',
-            icon: Monitor,
-            description: 'Ubuntu 20.04 or later',
-        },
+    const platforms: { id: Platform; name: string; icon: any; available: boolean }[] = [
+        { id: "WINDOWS", name: "Windows", icon: Laptop, available: true },
+        { id: "MAC", name: "macOS", icon: Apple, available: true },
+        { id: "LINUX", name: "Linux", icon: Monitor, available: true },
     ]
 
-    // Get the current version from the first available download
-    const currentVersion = downloadInfo?.[0]?.version || '1.0.0'
+    const getDownloadUrl = (platform: Platform) => {
+        if (!downloadInfo) return null
+        switch (platform) {
+            case "WINDOWS":
+                return downloadInfo.windows
+            case "MAC":
+                return downloadInfo.mac
+            case "LINUX":
+                return downloadInfo.linux
+            default:
+                return null
+        }
+    }
+
+    const handleCopyToken = async () => {
+        // In production, this would copy an actual registration token
+        try {
+            await navigator.clipboard.writeText("merit-tracker-registration-token")
+            setCopiedToken(true)
+            toast.success("Token copied to clipboard")
+            setTimeout(() => setCopiedToken(false), 2000)
+        } catch {
+            toast.error("Failed to copy token")
+        }
+    }
+
+    const handleDownload = (platform: Platform) => {
+        const url = getDownloadUrl(platform)
+        if (url) {
+            window.open(url, "_blank")
+            toast.success(`Downloading Merit Tracker for ${platform}...`)
+        } else {
+            toast.error("Download not available for this platform")
+        }
+    }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-lg">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <Monitor className="h-5 w-5" />
+                        <Download className="h-5 w-5" />
                         Download Merit Tracker Desktop
                     </DialogTitle>
                     <DialogDescription>
-                        Install the desktop agent to enable screen capture during time tracking.
-                        The app runs quietly in your system tray.
+                        Install the desktop app to enable screen capture during time tracking.
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid gap-4 py-4 md:grid-cols-3">
-                    {platforms.map((platform) => {
-                        const Icon = platform.icon
-                        const isDownloading = downloading === platform.id
-                        const platformInfo = getPlatformInfo(platform.id)
+                <Tabs value={selectedPlatform} onValueChange={(v) => setSelectedPlatform(v as Platform)}>
+                    <TabsList className="grid grid-cols-3">
+                        {platforms.map((platform) => {
+                            const Icon = platform.icon
+                            return (
+                                <TabsTrigger
+                                    key={platform.id}
+                                    value={platform.id}
+                                    disabled={!platform.available}
+                                    className="flex items-center gap-2"
+                                >
+                                    <Icon className="h-4 w-4" />
+                                    {platform.name}
+                                </TabsTrigger>
+                            )
+                        })}
+                    </TabsList>
 
-                        return (
-                            <Card
-                                key={platform.id}
-                                className="cursor-pointer hover:border-primary transition-colors"
-                                onClick={() => {
-                                    if (platformInfo?.downloadUrl) {
-                                        handleDownload(platformInfo.downloadUrl, platform.id)
-                                    }
-                                }}
-                            >
-                                <CardContent className="p-4 text-center">
-                                    <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-primary/10 flex items-center justify-center">
-                                        <Icon className="h-6 w-6 text-primary" />
-                                    </div>
-                                    <h3 className="font-semibold">{platform.name}</h3>
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        {platform.description}
-                                    </p>
-                                    {platformInfo && (
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            {formatFileSize(platformInfo.fileSize)}
+                    {platforms.map((platform) => (
+                        <TabsContent key={platform.id} value={platform.id} className="space-y-4">
+                            <div className="rounded-lg border p-4 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="font-medium">Merit Tracker for {platform.name}</h4>
+                                        <p className="text-sm text-muted-foreground">
+                                            Version {downloadInfo?.version || "1.0.0"}
                                         </p>
+                                    </div>
+                                    {getDownloadUrl(platform.id) ? (
+                                        <Button onClick={() => handleDownload(platform.id)}>
+                                            <Download className="h-4 w-4 mr-2" />
+                                            Download
+                                        </Button>
+                                    ) : (
+                                        <Badge variant="secondary">Coming Soon</Badge>
                                     )}
-                                    <Button
-                                        size="sm"
-                                        className="mt-3 w-full gap-2"
-                                        disabled={isDownloading || !platformInfo?.downloadUrl}
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            if (platformInfo?.downloadUrl) {
-                                                handleDownload(platformInfo.downloadUrl, platform.id)
-                                            }
-                                        }}
-                                    >
-                                        {isDownloading ? (
-                                            <>
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                                Downloading...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Download className="h-4 w-4" />
-                                                Download
-                                            </>
-                                        )}
-                                    </Button>
-                                </CardContent>
-                            </Card>
-                        )
-                    })}
-                </div>
+                                </div>
 
-                <div className="flex items-center justify-between text-sm text-muted-foreground border-t pt-4">
-                    <span>Version {currentVersion}</span>
-                    {downloadInfo?.[0]?.releaseNotes && (
-                        <Button variant="link" size="sm" className="gap-1 p-0 h-auto">
-                            Release Notes
-                            <ExternalLink className="h-3 w-3" />
+                                {/* System Requirements */}
+                                <div className="text-sm text-muted-foreground">
+                                    <p className="font-medium text-foreground mb-1">System Requirements:</p>
+                                    {platform.id === "WINDOWS" && (
+                                        <ul className="list-disc list-inside space-y-0.5">
+                                            <li>Windows 10 or later (64-bit)</li>
+                                            <li>4GB RAM minimum</li>
+                                            <li>100MB free disk space</li>
+                                        </ul>
+                                    )}
+                                    {platform.id === "MAC" && (
+                                        <ul className="list-disc list-inside space-y-0.5">
+                                            <li>macOS 10.15 (Catalina) or later</li>
+                                            <li>4GB RAM minimum</li>
+                                            <li>100MB free disk space</li>
+                                            <li>Screen Recording permission required</li>
+                                        </ul>
+                                    )}
+                                    {platform.id === "LINUX" && (
+                                        <ul className="list-disc list-inside space-y-0.5">
+                                            <li>Ubuntu 20.04+, Fedora 34+, or similar</li>
+                                            <li>4GB RAM minimum</li>
+                                            <li>100MB free disk space</li>
+                                            <li>X11 or Wayland display server</li>
+                                        </ul>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Installation Steps */}
+                            <div className="space-y-3">
+                                <h4 className="font-medium">Installation Steps:</h4>
+                                <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                                    <li>Download the installer for your platform</li>
+                                    <li>Run the installer and follow the prompts</li>
+                                    <li>Launch Merit Tracker from your applications</li>
+                                    <li>Log in with your Merit Tracker account</li>
+                                    <li>The app will automatically connect to your workspace</li>
+                                </ol>
+                            </div>
+                        </TabsContent>
+                    ))}
+                </Tabs>
+
+                {/* Help Section */}
+                <div className="border-t pt-4 mt-4">
+                    <div className="flex items-center justify-between">
+                        <p className="text-sm text-muted-foreground">
+                            Having trouble? Check our documentation or contact support.
+                        </p>
+                        <Button variant="ghost" size="sm" asChild>
+                            <a
+                                href="https://docs.merittracker.com/desktop-agent"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                <ExternalLink className="h-4 w-4 mr-2" />
+                                Docs
+                            </a>
                         </Button>
-                    )}
-                </div>
-
-                <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                    <h4 className="font-medium text-sm flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                        After Installation
-                    </h4>
-                    <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
-                        <li>Run the installer and follow the setup wizard</li>
-                        <li>Sign in with your Merit Tracker account</li>
-                        <li>The app will run in your system tray</li>
-                        <li>Screen capture will automatically start when you track time</li>
-                    </ol>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>
     )
 }
-
-export { DownloadDialog }
