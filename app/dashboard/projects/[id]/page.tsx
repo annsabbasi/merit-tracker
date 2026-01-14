@@ -190,8 +190,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   // Check permissions
   const isAdmin = user?.role === "COMPANY" || user?.role === "QC_ADMIN"
+  const isUser = user?.role === "USER"
   const isProjectLead = project?.projectLeadId === user?.id
   const canManageProject = isAdmin || isProjectLead
+  const userManageProject = isUser
 
   // Check if current timer is for this project
   const isTrackingThisProject = activeTimer?.active &&
@@ -776,7 +778,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               {tasks.map((task) => {
                 const StatusIcon = taskStatusIcons[task.status] || Circle
                 const isAssignedToMe = task.assignedToId === user?.id
-                const canTrackTime = isAssignedToMe || canManageProject
+                // const canTrackTime = isAssignedToMe || canManageProject
+                const canTrackTime = isAssignedToMe || userManageProject
 
                 return (
                   <Card key={task.id} className="relative">
