@@ -479,9 +479,9 @@ export default function ProfilePage() {
                 <TabsList className="w-full justify-start overflow-x-auto">
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="activity">Activity</TabsTrigger>
-                    <TabsTrigger value="achievements">
+                    {/* <TabsTrigger value="achievements">
                         Achievements ({achievementsData?.total || 0})
-                    </TabsTrigger>
+                    </TabsTrigger> */}
                     <TabsTrigger value="projects">
                         Projects ({stats?.projectsCount || 0})
                     </TabsTrigger>
@@ -715,7 +715,7 @@ export default function ProfilePage() {
                 </TabsContent>
 
                 {/* Achievements Tab */}
-                <TabsContent value="achievements" className="space-y-6 mt-6">
+                {/* <TabsContent value="achievements" className="space-y-6 mt-6">
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
@@ -761,7 +761,7 @@ export default function ProfilePage() {
                             )}
                         </CardContent>
                     </Card>
-                </TabsContent>
+                </TabsContent> */}
 
                 {/* Projects Tab */}
                 <TabsContent value="projects" className="space-y-6 mt-6">

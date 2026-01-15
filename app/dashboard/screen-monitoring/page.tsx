@@ -1,4 +1,3 @@
-// app/dashboard/screen-monitoring/page.tsx
 "use client"
 
 import { useState, useMemo } from "react"
@@ -60,16 +59,24 @@ export default function ScreenMonitoringPage() {
     const [searchQuery, setSearchQuery] = useState("")
     const [activeTab, setActiveTab] = useState("overview")
 
+    // Determine user permissions
     const isAdmin = user?.role === "COMPANY" || user?.role === "QC_ADMIN"
+    const isRegularUser = user?.role === "USER"
+
+    // For regular users, they can only see their own data
+    const canAccessPage = isAdmin || isRegularUser
+
+    // For regular users, default selectedUserId should be their own ID
+    const effectiveSelectedUserId = isRegularUser ? user?.id : selectedUserId
 
     const { data: users, isLoading: usersLoading } = useUsers()
     const { data: projects, isLoading: projectsLoading } = useProjects()
     const { data: companyAgents, isLoading: agentsLoading } = useCompanyAgents()
-    const { data: userSummary } = useUserScreenshotSummary(selectedUserId || "")
+    const { data: userSummary } = useUserScreenshotSummary(effectiveSelectedUserId || "")
 
     // Get recent screenshots across company
     const { data: recentScreenshotsData, isLoading: screenshotsLoading } = useScreenshots({
-        userId: selectedUserId,
+        userId: effectiveSelectedUserId,
         projectId: selectedProjectId,
         startDate: format(subDays(new Date(), 1), "yyyy-MM-dd'T'HH:mm:ss"),
         endDate: format(new Date(), "yyyy-MM-dd'T'HH:mm:ss"),
@@ -78,21 +85,43 @@ export default function ScreenMonitoringPage() {
     // Normalize screenshots data
     const recentScreenshots = useMemo(() => normalizeScreenshots(recentScreenshotsData), [recentScreenshotsData])
 
-    // Filter users based on search
-    const filteredUsers = users?.filter((u) =>
-        searchQuery
-            ? `${u.firstName} ${u.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            u.email.toLowerCase().includes(searchQuery.toLowerCase())
-            : true
-    )
+    // Filter users based on search and permissions
+    const filteredUsers = useMemo(() => {
+        if (!users) return []
 
-    // Count online agents
-    const onlineAgents = companyAgents?.filter((a) => a.isOnline).length || 0
-    const totalAgents = companyAgents?.length || 0
+        let userList = users
+
+        // If user is regular USER, they can only see themselves
+        if (isRegularUser) {
+            userList = userList.filter(u => u.id === user?.id)
+        }
+
+        // Apply search filter
+        if (searchQuery) {
+            userList = userList.filter((u) =>
+                `${u.firstName} ${u.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                u.email.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+        }
+
+        return userList
+    }, [users, isRegularUser, user?.id, searchQuery])
+
+    // Count online agents (only show user's own agents for regular users)
+    const filteredCompanyAgents = useMemo(() => {
+        if (!companyAgents) return []
+        if (isRegularUser) {
+            return companyAgents.filter(a => a.userId === user?.id)
+        }
+        return companyAgents
+    }, [companyAgents, isRegularUser, user?.id])
+
+    const onlineAgents = filteredCompanyAgents.filter((a) => a.isOnline).length || 0
+    const totalAgents = filteredCompanyAgents.length || 0
 
     // Get users with their agent status
     const usersWithAgentStatus = filteredUsers?.map((u) => {
-        const userAgents = companyAgents?.filter((a) => a.userId === u.id) || []
+        const userAgents = filteredCompanyAgents?.filter((a) => a.userId === u.id) || []
         const hasOnlineAgent = userAgents.some((a) => a.isOnline)
         return {
             ...u,
@@ -102,14 +131,14 @@ export default function ScreenMonitoringPage() {
         }
     })
 
-    if (!isAdmin) {
+    if (!canAccessPage) {
         return (
             <div className="p-6">
                 <Alert variant="destructive">
                     <ShieldAlert className="h-4 w-4" />
                     <AlertTitle>Access Denied</AlertTitle>
                     <AlertDescription>
-                        Screen monitoring is only available to administrators and QC admins.
+                        Screen monitoring is only available to administrators, QC admins, and users for their own data.
                     </AlertDescription>
                 </Alert>
             </div>
@@ -123,7 +152,14 @@ export default function ScreenMonitoringPage() {
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">Screen Monitoring</h1>
                     <p className="text-muted-foreground">
-                        Monitor team activity and view captured screenshots
+                        {isRegularUser
+                            ? "View your activity and captured screenshots"
+                            : "Monitor team activity and view captured screenshots"}
+                        {isRegularUser && (
+                            <span className="ml-2 text-sm bg-muted px-2 py-1 rounded">
+                                Viewing your own data only
+                            </span>
+                        )}
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -134,7 +170,7 @@ export default function ScreenMonitoringPage() {
                 </div>
             </div>
 
-            {/* Quick Stats */}
+            {/* Quick Stats - Adjusted for regular users */}
             <div className="grid gap-4 md:grid-cols-4">
                 <Card>
                     <CardContent className="p-4">
@@ -146,9 +182,11 @@ export default function ScreenMonitoringPage() {
                                 {usersLoading ? (
                                     <Skeleton className="h-7 w-12" />
                                 ) : (
-                                    <p className="text-2xl font-bold">{users?.length || 0}</p>
+                                    <p className="text-2xl font-bold">{isRegularUser ? "1" : users?.length || 0}</p>
                                 )}
-                                <p className="text-sm text-muted-foreground">Team Members</p>
+                                <p className="text-sm text-muted-foreground">
+                                    {isRegularUser ? "Your Account" : "Team Members"}
+                                </p>
                             </div>
                         </div>
                     </CardContent>
@@ -166,7 +204,9 @@ export default function ScreenMonitoringPage() {
                                 ) : (
                                     <p className="text-2xl font-bold">{onlineAgents}</p>
                                 )}
-                                <p className="text-sm text-muted-foreground">Online Now</p>
+                                <p className="text-sm text-muted-foreground">
+                                    {isRegularUser ? "Your Online Agents" : "Online Now"}
+                                </p>
                             </div>
                         </div>
                     </CardContent>
@@ -201,67 +241,77 @@ export default function ScreenMonitoringPage() {
                                     <Skeleton className="h-7 w-12" />
                                 ) : (
                                     <p className="text-2xl font-bold">
-                                        {projects?.filter((p) => p.screenCaptureEnabled).length || 0}
+                                        {isRegularUser
+                                            ? projects?.filter(p => p.screenCaptureEnabled).length || 0
+                                            : projects?.filter((p) => p.screenCaptureEnabled).length || 0}
                                     </p>
                                 )}
-                                <p className="text-sm text-muted-foreground">Projects w/ Capture</p>
+                                <p className="text-sm text-muted-foreground">
+                                    {isRegularUser ? "Projects You're In" : "Projects w/ Capture"}
+                                </p>
                             </div>
                         </div>
                     </CardContent>
                 </Card>
             </div>
 
-            {/* Tabs */}
+            {/* Tabs - Hide some tabs for regular users */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList>
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="team">Team Activity</TabsTrigger>
-                    <TabsTrigger value="screenshots">All Screenshots</TabsTrigger>
+                    <TabsTrigger value="overview">
+                        {isRegularUser ? "Your Overview" : "Overview"}
+                    </TabsTrigger>
+                    {!isRegularUser && <TabsTrigger value="team">Team Activity</TabsTrigger>}
+                    <TabsTrigger value="screenshots">
+                        {isRegularUser ? "Your Screenshots" : "All Screenshots"}
+                    </TabsTrigger>
                 </TabsList>
 
                 {/* Overview Tab */}
                 <TabsContent value="overview" className="space-y-6">
-                    {/* Filters */}
-                    <Card>
-                        <CardContent className="p-4">
-                            <div className="flex flex-wrap items-center gap-4">
-                                <div className="relative flex-1 max-w-xs">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        placeholder="Search users..."
-                                        className="pl-9"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                    />
+                    {/* Filters - Hide for regular users */}
+                    {!isRegularUser && (
+                        <Card>
+                            <CardContent className="p-4">
+                                <div className="flex flex-wrap items-center gap-4">
+                                    <div className="relative flex-1 max-w-xs">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Search users..."
+                                            className="pl-9"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                        />
+                                    </div>
+
+                                    <Select
+                                        value={selectedProjectId || "all"}
+                                        onValueChange={(v) => setSelectedProjectId(v === "all" ? undefined : v)}
+                                    >
+                                        <SelectTrigger className="w-48">
+                                            <FolderKanban className="h-4 w-4 mr-2" />
+                                            <SelectValue placeholder="All Projects" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Projects</SelectItem>
+                                            {projects
+                                                ?.filter((p) => p.screenCaptureEnabled)
+                                                .map((project) => (
+                                                    <SelectItem key={project.id} value={project.id}>
+                                                        {project.name}
+                                                    </SelectItem>
+                                                ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
+                            </CardContent>
+                        </Card>
+                    )}
 
-                                <Select
-                                    value={selectedProjectId || "all"}
-                                    onValueChange={(v) => setSelectedProjectId(v === "all" ? undefined : v)}
-                                >
-                                    <SelectTrigger className="w-48">
-                                        <FolderKanban className="h-4 w-4 mr-2" />
-                                        <SelectValue placeholder="All Projects" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Projects</SelectItem>
-                                        {projects
-                                            ?.filter((p) => p.screenCaptureEnabled)
-                                            .map((project) => (
-                                                <SelectItem key={project.id} value={project.id}>
-                                                    {project.name}
-                                                </SelectItem>
-                                            ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Team Members Grid */}
+                    {/* Team Members Grid - For regular users, only show their card */}
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {usersLoading ? (
-                            [...Array(6)].map((_, i) => (
+                            [...Array(isRegularUser ? 1 : 6)].map((_, i) => (
                                 <Card key={i}>
                                     <CardContent className="p-4">
                                         <div className="flex items-center gap-3">
@@ -278,9 +328,9 @@ export default function ScreenMonitoringPage() {
                             usersWithAgentStatus.map((u) => (
                                 <Card
                                     key={u.id}
-                                    className={`cursor-pointer transition-all hover:border-primary ${selectedUserId === u.id ? "ring-2 ring-primary" : ""
+                                    className={`cursor-pointer transition-all hover:border-primary ${effectiveSelectedUserId === u.id ? "ring-2 ring-primary" : ""
                                         }`}
-                                    onClick={() => setSelectedUserId(selectedUserId === u.id ? undefined : u.id)}
+                                    onClick={() => !isRegularUser && setSelectedUserId(effectiveSelectedUserId === u.id ? undefined : u.id)}
                                 >
                                     <CardContent className="p-4">
                                         <div className="flex items-start justify-between">
@@ -328,7 +378,7 @@ export default function ScreenMonitoringPage() {
                                         </div>
 
                                         {/* Show recent screenshot thumbnail if available */}
-                                        {selectedUserId === u.id && recentScreenshots && recentScreenshots.length > 0 && (
+                                        {effectiveSelectedUserId === u.id && recentScreenshots && recentScreenshots.length > 0 && (
                                             <div className="mt-4 pt-4 border-t">
                                                 <p className="text-sm text-muted-foreground mb-2">Latest Screenshot</p>
                                                 <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
@@ -362,205 +412,209 @@ export default function ScreenMonitoringPage() {
                     </div>
                 </TabsContent>
 
-                {/* Team Activity Tab */}
-                <TabsContent value="team" className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Activity className="h-5 w-5" />
-                                Live Activity
-                            </CardTitle>
-                            <CardDescription>
-                                See who is currently tracking time with screen capture
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {agentsLoading ? (
-                                <div className="space-y-4">
-                                    {[...Array(3)].map((_, i) => (
-                                        <Skeleton key={i} className="h-20" />
-                                    ))}
-                                </div>
-                            ) : companyAgents && companyAgents.filter((a) => a.isOnline).length > 0 ? (
-                                <div className="space-y-4">
-                                    {companyAgents
-                                        .filter((a) => a.isOnline)
-                                        .map((agent) => (
-                                            <div
-                                                key={agent.id}
-                                                className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
-                                            >
-                                                <div className="flex items-center gap-4">
-                                                    <div className="relative">
-                                                        <Avatar className="h-10 w-10">
-                                                            <AvatarImage src={agent.user?.avatar || ""} />
-                                                            <AvatarFallback>
-                                                                {agent.user?.firstName?.[0]}
-                                                                {agent.user?.lastName?.[0]}
-                                                            </AvatarFallback>
-                                                        </Avatar>
-                                                        <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-medium">
-                                                            {agent.user?.firstName} {agent.user?.lastName}
-                                                        </p>
-                                                        <p className="text-sm text-muted-foreground">
-                                                            {agent.machineName || agent.machineId} • {agent.platform}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-4">
-                                                    <div className="text-right">
-                                                        <p className="text-sm text-muted-foreground">Last heartbeat</p>
-                                                        <p className="text-sm font-medium">
-                                                            {agent.lastHeartbeat
-                                                                ? format(new Date(agent.lastHeartbeat), "HH:mm:ss")
-                                                                : "N/A"}
-                                                        </p>
-                                                    </div>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => {
-                                                            setSelectedUserId(agent.userId)
-                                                            setActiveTab("screenshots")
-                                                        }}
-                                                    >
-                                                        <Eye className="h-4 w-4 mr-1" />
-                                                        View
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-12">
-                                    <WifiOff className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
-                                    <p className="mt-4 text-muted-foreground">No agents currently online</p>
-                                    <p className="text-sm text-muted-foreground mt-2">
-                                        Team members need to have the desktop app running
-                                    </p>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    {/* Offline Agents */}
-                    {companyAgents && companyAgents.filter((a) => !a.isOnline).length > 0 && (
+                {/* Team Activity Tab - Only for admins */}
+                {!isRegularUser && (
+                    <TabsContent value="team" className="space-y-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2 text-muted-foreground">
-                                    <WifiOff className="h-5 w-5" />
-                                    Offline Agents
+                                <CardTitle className="flex items-center gap-2">
+                                    <Activity className="h-5 w-5" />
+                                    Live Activity
                                 </CardTitle>
+                                <CardDescription>
+                                    See who is currently tracking time with screen capture
+                                </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                                    {companyAgents
-                                        .filter((a) => !a.isOnline)
-                                        .map((agent) => (
-                                            <div
-                                                key={agent.id}
-                                                className="flex items-center gap-3 p-3 rounded-lg border"
-                                            >
-                                                <Avatar className="h-8 w-8">
-                                                    <AvatarImage src={agent.user?.avatar || ""} />
-                                                    <AvatarFallback>
-                                                        {agent.user?.firstName?.[0]}
-                                                        {agent.user?.lastName?.[0]}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium truncate">
-                                                        {agent.user?.firstName} {agent.user?.lastName}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Last seen:{" "}
-                                                        {agent.lastHeartbeat
-                                                            ? format(new Date(agent.lastHeartbeat), "MMM d, HH:mm")
-                                                            : "Never"}
-                                                    </p>
-                                                </div>
-                                            </div>
+                                {agentsLoading ? (
+                                    <div className="space-y-4">
+                                        {[...Array(3)].map((_, i) => (
+                                            <Skeleton key={i} className="h-20" />
                                         ))}
+                                    </div>
+                                ) : companyAgents && companyAgents.filter((a) => a.isOnline).length > 0 ? (
+                                    <div className="space-y-4">
+                                        {companyAgents
+                                            .filter((a) => a.isOnline)
+                                            .map((agent) => (
+                                                <div
+                                                    key={agent.id}
+                                                    className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="relative">
+                                                            <Avatar className="h-10 w-10">
+                                                                <AvatarImage src={agent.user?.avatar || ""} />
+                                                                <AvatarFallback>
+                                                                    {agent.user?.firstName?.[0]}
+                                                                    {agent.user?.lastName?.[0]}
+                                                                </AvatarFallback>
+                                                            </Avatar>
+                                                            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium">
+                                                                {agent.user?.firstName} {agent.user?.lastName}
+                                                            </p>
+                                                            <p className="text-sm text-muted-foreground">
+                                                                {agent.machineName || agent.machineId} • {agent.platform}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="text-right">
+                                                            <p className="text-sm text-muted-foreground">Last heartbeat</p>
+                                                            <p className="text-sm font-medium">
+                                                                {agent.lastHeartbeat
+                                                                    ? format(new Date(agent.lastHeartbeat), "HH:mm:ss")
+                                                                    : "N/A"}
+                                                            </p>
+                                                        </div>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setSelectedUserId(agent.userId)
+                                                                setActiveTab("screenshots")
+                                                            }}
+                                                        >
+                                                            <Eye className="h-4 w-4 mr-1" />
+                                                            View
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-12">
+                                        <WifiOff className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
+                                        <p className="mt-4 text-muted-foreground">No agents currently online</p>
+                                        <p className="text-sm text-muted-foreground mt-2">
+                                            Team members need to have the desktop app running
+                                        </p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Offline Agents */}
+                        {companyAgents && companyAgents.filter((a) => !a.isOnline).length > 0 && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-muted-foreground">
+                                        <WifiOff className="h-5 w-5" />
+                                        Offline Agents
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                                        {companyAgents
+                                            .filter((a) => !a.isOnline)
+                                            .map((agent) => (
+                                                <div
+                                                    key={agent.id}
+                                                    className="flex items-center gap-3 p-3 rounded-lg border"
+                                                >
+                                                    <Avatar className="h-8 w-8">
+                                                        <AvatarImage src={agent.user?.avatar || ""} />
+                                                        <AvatarFallback>
+                                                            {agent.user?.firstName?.[0]}
+                                                            {agent.user?.lastName?.[0]}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium truncate">
+                                                            {agent.user?.firstName} {agent.user?.lastName}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Last seen:{" "}
+                                                            {agent.lastHeartbeat
+                                                                ? format(new Date(agent.lastHeartbeat), "MMM d, HH:mm")
+                                                                : "Never"}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </TabsContent>
+                )}
+
+                {/* All Screenshots Tab */}
+                <TabsContent value="screenshots">
+                    {/* User Filter - Hide for regular users */}
+                    {!isRegularUser && (
+                        <Card className="mb-4">
+                            <CardContent className="p-4">
+                                <div className="flex flex-wrap items-center gap-4">
+                                    <Select
+                                        value={selectedUserId || "all"}
+                                        onValueChange={(v) => setSelectedUserId(v === "all" ? undefined : v)}
+                                    >
+                                        <SelectTrigger className="w-64">
+                                            <Users className="h-4 w-4 mr-2" />
+                                            <SelectValue placeholder="All Users" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Users</SelectItem>
+                                            {users?.map((u) => (
+                                                <SelectItem key={u.id} value={u.id}>
+                                                    <div className="flex items-center gap-2">
+                                                        <Avatar className="h-5 w-5">
+                                                            <AvatarFallback className="text-xs">
+                                                                {u.firstName?.[0]}
+                                                                {u.lastName?.[0]}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                        {u.firstName} {u.lastName}
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+
+                                    <Select
+                                        value={selectedProjectId || "all"}
+                                        onValueChange={(v) => setSelectedProjectId(v === "all" ? undefined : v)}
+                                    >
+                                        <SelectTrigger className="w-48">
+                                            <FolderKanban className="h-4 w-4 mr-2" />
+                                            <SelectValue placeholder="All Projects" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Projects</SelectItem>
+                                            {projects
+                                                ?.filter((p) => p.screenCaptureEnabled)
+                                                .map((project) => (
+                                                    <SelectItem key={project.id} value={project.id}>
+                                                        {project.name}
+                                                    </SelectItem>
+                                                ))}
+                                        </SelectContent>
+                                    </Select>
+
+                                    {selectedUserId && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                                setSelectedUserId(undefined)
+                                                setSelectedProjectId(undefined)
+                                            }}
+                                        >
+                                            Clear Filters
+                                        </Button>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
                     )}
-                </TabsContent>
-
-                {/* All Screenshots Tab */}
-                <TabsContent value="screenshots">
-                    {/* User Filter */}
-                    <Card className="mb-4">
-                        <CardContent className="p-4">
-                            <div className="flex flex-wrap items-center gap-4">
-                                <Select
-                                    value={selectedUserId || "all"}
-                                    onValueChange={(v) => setSelectedUserId(v === "all" ? undefined : v)}
-                                >
-                                    <SelectTrigger className="w-64">
-                                        <Users className="h-4 w-4 mr-2" />
-                                        <SelectValue placeholder="All Users" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Users</SelectItem>
-                                        {users?.map((u) => (
-                                            <SelectItem key={u.id} value={u.id}>
-                                                <div className="flex items-center gap-2">
-                                                    <Avatar className="h-5 w-5">
-                                                        <AvatarFallback className="text-xs">
-                                                            {u.firstName?.[0]}
-                                                            {u.lastName?.[0]}
-                                                        </AvatarFallback>
-                                                    </Avatar>
-                                                    {u.firstName} {u.lastName}
-                                                </div>
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-
-                                <Select
-                                    value={selectedProjectId || "all"}
-                                    onValueChange={(v) => setSelectedProjectId(v === "all" ? undefined : v)}
-                                >
-                                    <SelectTrigger className="w-48">
-                                        <FolderKanban className="h-4 w-4 mr-2" />
-                                        <SelectValue placeholder="All Projects" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Projects</SelectItem>
-                                        {projects
-                                            ?.filter((p) => p.screenCaptureEnabled)
-                                            .map((project) => (
-                                                <SelectItem key={project.id} value={project.id}>
-                                                    {project.name}
-                                                </SelectItem>
-                                            ))}
-                                    </SelectContent>
-                                </Select>
-
-                                {selectedUserId && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                            setSelectedUserId(undefined)
-                                            setSelectedProjectId(undefined)
-                                        }}
-                                    >
-                                        Clear Filters
-                                    </Button>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
 
                     {/* Screenshot Timeline */}
                     <ScreenshotTimeline
-                        userId={selectedUserId}
+                        userId={effectiveSelectedUserId}
                         projectId={selectedProjectId}
                         canDelete={user?.role === "COMPANY"}
                     />
