@@ -48,9 +48,9 @@ export default function LoginPage() {
       <header className="flex items-center justify-between p-4 border-b border-border">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">WF</span>
+            <span className="text-primary-foreground font-bold text-sm">MT</span>
           </div>
-          <span className="font-semibold text-foreground">WorkFlow Pro</span>
+          <span className="font-semibold text-foreground">Merit-Tracker</span>
         </div>
         <ThemeToggle />
       </header>
@@ -64,11 +64,11 @@ export default function LoginPage() {
           <CardContent>
             <Tabs value={loginType} onValueChange={(v) => setLoginType(v as "company" | "user")}>
               <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="company" className="flex items-center gap-2">
+                <TabsTrigger value="company" className="flex items-center gap-2 hover-lift  cursor-pointer border-sidebar-border">
                   <Building2 className="h-4 w-4" />
                   Company
                 </TabsTrigger>
-                <TabsTrigger value="user" className="flex items-center gap-2">
+                <TabsTrigger value="user" className="flex items-center gap-2 hover-lift  cursor-pointer border-sidebar-border">
                   <User className="h-4 w-4" />
                   User
                 </TabsTrigger>
@@ -160,7 +160,7 @@ export default function LoginPage() {
                   </Label>
                 </div>
 
-                <Button type="submit" className="w-full mt-6" disabled={loginMutation.isPending}>
+                <Button type="submit" className="w-full mt-6 hover-lift cursor-pointer border" disabled={loginMutation.isPending}>
                   {loginMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Sign In
                 </Button>

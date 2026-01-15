@@ -116,11 +116,11 @@ export default function RegisterPage() {
           <CardContent>
             <Tabs value={registerType} onValueChange={(v) => setRegisterType(v as "company" | "user")}>
               <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="company" className="flex items-center gap-2">
+                <TabsTrigger value="company" className="flex items-center gap-2 hover-lift cursor-pointer border-sidebar-border">
                   <Building2 className="h-4 w-4" />
                   Company
                 </TabsTrigger>
-                <TabsTrigger value="user" className="flex items-center gap-2">
+                <TabsTrigger value="user" className="flex items-center gap-2 hover-lift cursor-pointer border-sidebar-border">
                   <User className="h-4 w-4" />
                   User
                 </TabsTrigger>
@@ -330,7 +330,7 @@ export default function RegisterPage() {
                   </div>
                 </TabsContent>
 
-                <Button type="submit" className="w-full mt-6" disabled={isLoading}>
+                <Button type="submit" className="w-full mt-6 hover-lift cursor-pointer border" disabled={isLoading}>
                   {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Create Account
                 </Button>

@@ -1,4 +1,5 @@
 // components/dashboard/sidebar.tsx
+// UPDATED VERSION - Added Profile link
 "use client"
 
 import Link from "next/link"
@@ -19,6 +20,7 @@ import {
   Copy,
   Monitor,
   GalleryHorizontal,
+  User, // Added for Profile
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -72,6 +74,9 @@ export function Sidebar() {
     const daysLeft = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     return Math.max(0, daysLeft)
   }
+
+  // Check if current path is profile
+  const isProfileActive = pathname === "/dashboard/profile" || pathname.startsWith("/dashboard/profile/")
 
   return (
     <TooltipProvider>
@@ -128,7 +133,6 @@ export function Sidebar() {
 
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
           {navigation.map((item) => {
-            // const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
             const isActive = pathname === item.href ||
               (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"))
             const NavItem = (
@@ -193,8 +197,18 @@ export function Sidebar() {
             )}
           </div>
 
+          {/* User Profile Section - Now clickable */}
           {user && (
-            <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
+            <Link
+              href="/dashboard/profile"
+              className={cn(
+                "flex items-center gap-3 p-2 -m-2 rounded-lg transition-colors cursor-pointer",
+                collapsed ? "justify-center" : "",
+                isProfileActive
+                  ? "bg-sidebar-accent"
+                  : "hover:bg-sidebar-accent/50"
+              )}
+            >
               <Avatar className="h-9 w-9">
                 <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.firstName} />
                 <AvatarFallback>
@@ -206,12 +220,14 @@ export function Sidebar() {
                   <p className="text-sm font-medium text-sidebar-foreground truncate">
                     {user.firstName} {user.lastName}
                   </p>
-                  <Badge className={cn("text-xs", roleColors[user.role as keyof typeof roleColors])}>
-                    {user.role.replace("_", " ")}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className={cn("text-xs", roleColors[user.role as keyof typeof roleColors])}>
+                      {user.role.replace("_", " ")}
+                    </Badge>
+                  </div>
                 </div>
               )}
-            </div>
+            </Link>
           )}
         </div>
       </aside>
