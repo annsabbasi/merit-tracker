@@ -37,6 +37,7 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     setError("")
 
     // Validation
@@ -50,42 +51,49 @@ export default function RegisterPage() {
       return
     }
 
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setError("First name and last name are required")
+      return
+    }
+
     if (registerType === "company") {
+      if (!formData.companyName.trim()) {
+        setError("Company name is required")
+        return
+      }
+
       // Register company with admin
       registerCompanyMutation.mutate({
-        companyName: formData.companyName,
-        email: formData.email,
+        companyName: formData.companyName.trim(),
+        email: formData.email.trim(),
         password: formData.password,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        phone: formData.phone || undefined,
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        phone: formData.phone.trim() || undefined,
       })
     } else {
+      if (!formData.companyCode.trim()) {
+        setError("Company code is required")
+        return
+      }
+
       // Register user to existing company
       registerUserMutation.mutate({
-        email: formData.email,
+        email: formData.email.trim(),
         password: formData.password,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        companyCode: formData.companyCode,
-        phone: formData.phone || undefined,
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        companyCode: formData.companyCode.trim(),
+        phone: formData.phone.trim() || undefined,
       })
     }
   }
 
   const updateForm = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+    // Clear error when user starts typing
+    if (error) setError("")
   }
-
-  // Split name into first and last
-  const handleNameChange = (fullName: string) => {
-    const parts = fullName.trim().split(" ")
-    const firstName = parts[0] || ""
-    const lastName = parts.slice(1).join(" ") || ""
-    setFormData((prev) => ({ ...prev, firstName, lastName }))
-  }
-
-  const fullName = `${formData.firstName} ${formData.lastName}`.trim()
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -118,7 +126,7 @@ export default function RegisterPage() {
                 </TabsTrigger>
               </TabsList>
 
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} noValidate>
                 {(error || mutationError) && (
                   <Alert variant="destructive" className="mb-4">
                     <AlertCircle className="h-4 w-4" />
@@ -143,6 +151,7 @@ export default function RegisterPage() {
                       onChange={(e) => updateForm("companyName", e.target.value)}
                       disabled={isLoading}
                       required
+                      autoComplete="organization"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -155,6 +164,7 @@ export default function RegisterPage() {
                         onChange={(e) => updateForm("firstName", e.target.value)}
                         disabled={isLoading}
                         required
+                        autoComplete="given-name"
                       />
                     </div>
                     <div className="space-y-2">
@@ -166,6 +176,7 @@ export default function RegisterPage() {
                         onChange={(e) => updateForm("lastName", e.target.value)}
                         disabled={isLoading}
                         required
+                        autoComplete="family-name"
                       />
                     </div>
                   </div>
@@ -179,6 +190,7 @@ export default function RegisterPage() {
                       onChange={(e) => updateForm("email", e.target.value)}
                       disabled={isLoading}
                       required
+                      autoComplete="email"
                     />
                   </div>
                   <div className="space-y-2">
@@ -190,6 +202,7 @@ export default function RegisterPage() {
                       value={formData.phone}
                       onChange={(e) => updateForm("phone", e.target.value)}
                       disabled={isLoading}
+                      autoComplete="tel"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -203,6 +216,7 @@ export default function RegisterPage() {
                         onChange={(e) => updateForm("password", e.target.value)}
                         disabled={isLoading}
                         required
+                        autoComplete="new-password"
                       />
                     </div>
                     <div className="space-y-2">
@@ -215,6 +229,7 @@ export default function RegisterPage() {
                         onChange={(e) => updateForm("confirmPassword", e.target.value)}
                         disabled={isLoading}
                         required
+                        autoComplete="new-password"
                       />
                     </div>
                   </div>
@@ -230,6 +245,7 @@ export default function RegisterPage() {
                       onChange={(e) => updateForm("companyCode", e.target.value)}
                       disabled={isLoading}
                       required={registerType === "user"}
+                      autoComplete="off"
                     />
                     <p className="text-xs text-muted-foreground">Get this code from your company administrator</p>
                   </div>
@@ -243,6 +259,7 @@ export default function RegisterPage() {
                         onChange={(e) => updateForm("firstName", e.target.value)}
                         disabled={isLoading}
                         required
+                        autoComplete="given-name"
                       />
                     </div>
                     <div className="space-y-2">
@@ -254,6 +271,7 @@ export default function RegisterPage() {
                         onChange={(e) => updateForm("lastName", e.target.value)}
                         disabled={isLoading}
                         required
+                        autoComplete="family-name"
                       />
                     </div>
                   </div>
@@ -267,6 +285,7 @@ export default function RegisterPage() {
                       onChange={(e) => updateForm("email", e.target.value)}
                       disabled={isLoading}
                       required
+                      autoComplete="email"
                     />
                   </div>
                   <div className="space-y-2">
@@ -278,6 +297,7 @@ export default function RegisterPage() {
                       value={formData.phone}
                       onChange={(e) => updateForm("phone", e.target.value)}
                       disabled={isLoading}
+                      autoComplete="tel"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -291,6 +311,7 @@ export default function RegisterPage() {
                         onChange={(e) => updateForm("password", e.target.value)}
                         disabled={isLoading}
                         required
+                        autoComplete="new-password"
                       />
                     </div>
                     <div className="space-y-2">
@@ -303,6 +324,7 @@ export default function RegisterPage() {
                         onChange={(e) => updateForm("confirmPassword", e.target.value)}
                         disabled={isLoading}
                         required
+                        autoComplete="new-password"
                       />
                     </div>
                   </div>

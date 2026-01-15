@@ -23,7 +23,7 @@ export default function RootLayout({
       {/* <body className={inter.className}> */}
       <body suppressHydrationWarning className={inter.className}>
 
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <AuthProvider>
             <Providers>{children}</Providers>
           </AuthProvider>

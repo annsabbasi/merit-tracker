@@ -27,9 +27,17 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    e.stopPropagation() // Prevent any default behavior
 
+    // Validate fields
+    if (!email || !password) {
+      return
+    }
+
+    // Note: companyCode is NOT needed for login, only for registration
+    // The backend identifies the user's company from their email
     loginMutation.mutate({
-      email,
+      email: email.trim(),
       password,
       rememberMe,
     })
@@ -66,7 +74,7 @@ export default function LoginPage() {
                 </TabsTrigger>
               </TabsList>
 
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} noValidate>
                 {loginMutation.isError && (
                   <Alert variant="destructive" className="mb-4">
                     <AlertCircle className="h-4 w-4" />
@@ -87,6 +95,7 @@ export default function LoginPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={loginMutation.isPending}
                       required
+                      autoComplete="email"
                     />
                   </div>
                   <div className="space-y-2">
@@ -99,23 +108,12 @@ export default function LoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loginMutation.isPending}
                       required
+                      autoComplete="current-password"
                     />
                   </div>
                 </TabsContent>
 
                 <TabsContent value="user" className="space-y-4 mt-0">
-                  <div className="space-y-2">
-                    <Label htmlFor="user-company-code">Company Code</Label>
-                    <Input
-                      id="user-company-code"
-                      placeholder="Enter your company code"
-                      value={companyCode}
-                      onChange={(e) => setCompanyCode(e.target.value)}
-                      disabled={loginMutation.isPending}
-                      required={loginType === "user"}
-                    />
-                    <p className="text-xs text-muted-foreground">Ask your company admin for the company code</p>
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="user-email">Email</Label>
                     <Input
@@ -126,6 +124,7 @@ export default function LoginPage() {
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={loginMutation.isPending}
                       required
+                      autoComplete="email"
                     />
                   </div>
                   <div className="space-y-2">
@@ -138,8 +137,12 @@ export default function LoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loginMutation.isPending}
                       required
+                      autoComplete="current-password"
                     />
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Use the email and password provided by your company administrator
+                  </p>
                 </TabsContent>
 
                 <div className="flex items-center space-x-2 mt-4">
@@ -176,4 +179,3 @@ export default function LoginPage() {
     </div>
   )
 }
-

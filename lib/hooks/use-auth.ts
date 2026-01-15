@@ -19,16 +19,30 @@ export function useLogin() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (data: LoginRequest & { rememberMe?: boolean }) =>
-            api.post<AuthResponse>('/login', { email: data.email, password: data.password }),
+        mutationFn: async (data: LoginRequest & { rememberMe?: boolean }) => {
+            const payload = {
+                email: data.email.trim(),
+                password: data.password
+            };
+
+            return api.post<AuthResponse>('/login', payload);
+        },
         onSuccess: (res, variables) => {
+            // Store token and user data
             login(res.access_token, res.user, res.company, res.subscription, variables.rememberMe);
+
+            // Clear all queries
             queryClient.clear();
+
+            // Show success message
             toast.success(`Welcome back, ${res.user.firstName}!`);
+
+            // Navigate to dashboard
             router.push('/dashboard');
         },
         onError: (error) => {
-            toast.error(getErrorMessage(error));
+            // Error is handled by the component displaying it
+            console.error('Login error:', error);
         },
     });
 }
@@ -36,20 +50,23 @@ export function useLogin() {
 // Register Company
 export function useRegisterCompany() {
     const router = useRouter();
-    const login = useAuthStore((s) => s.login);
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: (data: RegisterCompanyRequest) =>
             api.post<AuthResponse>('/register/company', data),
         onSuccess: (res) => {
-            login(res.access_token, res.user, res.company, res.subscription, false);
+            // Clear queries
             queryClient.clear();
-            toast.success(`User register successfull And ${res.company.name}! Your 3-day trial has started.`);
+
+            // Show success message
+            toast.success(`${res.company.name} registered successfully! Your 3-day trial has started. Please login to continue.`);
+
+            // Redirect to login
             router.push('/login');
         },
         onError: (error) => {
-            toast.error(getErrorMessage(error));
+            console.error('Registration error:', error);
         },
     });
 }
@@ -57,20 +74,23 @@ export function useRegisterCompany() {
 // Register User
 export function useRegisterUser() {
     const router = useRouter();
-    const login = useAuthStore((s) => s.login);
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: (data: RegisterUserRequest) =>
             api.post<AuthResponse>('/register/user', data),
         onSuccess: (res) => {
-            login(res.access_token, res.user, res.company, res.subscription, false);
+            // Clear queries
             queryClient.clear();
-            toast.success(`Welcome to ${res.company.name}, ${res.user.firstName}!`);
-            router.push('/dashboard');
+
+            // Show success message
+            toast.success(`Account created successfully! Please login to continue.`);
+
+            // Redirect to login
+            router.push('/login');
         },
         onError: (error) => {
-            toast.error(getErrorMessage(error));
+            console.error('Registration error:', error);
         },
     });
 }
@@ -81,9 +101,10 @@ export function useMe() {
 
     return useQuery({
         queryKey: authKeys.me(),
-        queryFn: () => api.get<User>('/auth/me'),
+        queryFn: () => api.get<User>('/me'),
         enabled: isAuthenticated,
         staleTime: 5 * 60 * 1000,
+        retry: 1,
     });
 }
 
@@ -95,13 +116,14 @@ export function useSubscriptionStatus() {
     return useQuery({
         queryKey: authKeys.subscription(),
         queryFn: async () => {
-            const data = await api.get<SubscriptionInfo>('/auth/subscription-status');
+            const data = await api.get<SubscriptionInfo>('/subscription-status');
             setSubscription(data);
             return data;
         },
         enabled: isAuthenticated,
         staleTime: 60 * 1000,
         refetchInterval: 5 * 60 * 1000,
+        retry: 1,
     });
 }
 
@@ -111,11 +133,30 @@ export function useLogout() {
     const logout = useAuthStore((s) => s.logout);
     const queryClient = useQueryClient();
 
-    return {
-        logout: () => {
+    return useMutation({
+        mutationFn: async () => {
+            // Clear auth state
             logout();
+
+            // Clear all queries
             queryClient.clear();
+
+            // Clear all storage
+            if (typeof window !== 'undefined') {
+                localStorage.removeItem('authToken');
+                sessionStorage.removeItem('authToken');
+
+                // Clear cookies
+                document.cookie.split(';').forEach((c) => {
+                    document.cookie = c
+                        .replace(/^ +/, '')
+                        .replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
+                });
+            }
+        },
+        onSuccess: () => {
+            toast.success('Logged out successfully');
             router.push('/login');
         },
-    };
+    });
 }
