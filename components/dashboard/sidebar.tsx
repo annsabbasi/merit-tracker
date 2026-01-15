@@ -209,7 +209,7 @@ export function Sidebar() {
                   : "hover:bg-sidebar-accent/50"
               )}
             >
-              <Avatar className="h-9 w-9">
+              <Avatar className="h-9 w-9 border-2 border-sidebar-accent bg-transparent">
                 <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.firstName} />
                 <AvatarFallback>
                   {user.firstName.charAt(0)}{user.lastName.charAt(0)}
@@ -221,9 +221,9 @@ export function Sidebar() {
                     {user.firstName} {user.lastName}
                   </p>
                   <div className="flex items-center gap-2">
-                    <Badge className={cn("text-xs", roleColors[user.role as keyof typeof roleColors])}>
+                    <p className="text-sm font-medium text-sidebar-foreground truncate">
                       {user.role.replace("_", " ")}
-                    </Badge>
+                    </p>
                   </div>
                 </div>
               )}
