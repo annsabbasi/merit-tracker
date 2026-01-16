@@ -1,10 +1,12 @@
 // src/lib/hooks/use-departments.ts
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api/request';
+import { api, BASE_URL } from '@/lib/api/request';
+import { useAuthStore } from '@/lib/stores/auth-store';
 import type { Department, Project, User } from '@/lib/types/index';
 
 // Extended Department type with stats
 export interface DepartmentWithStats extends Department {
+    logo?: string | null; // Department logo
     stats: {
         totalMembers: number;
         activeMembers: number;
@@ -85,7 +87,7 @@ export function useAvailableUsers(departmentId: string) {
     });
 }
 
-// Create department
+// Create department (with optional logo URL)
 export function useCreateDepartment() {
     const queryClient = useQueryClient();
 
@@ -94,6 +96,7 @@ export function useCreateDepartment() {
             name: string;
             description?: string;
             tag?: string;
+            logo?: string; // Logo URL from pre-upload
             leadId?: string;
             startDate?: string;
             endDate?: string;
@@ -106,7 +109,7 @@ export function useCreateDepartment() {
     });
 }
 
-// Update department
+// Update department (with optional logo URL)
 export function useUpdateDepartment() {
     const queryClient = useQueryClient();
 
@@ -117,12 +120,60 @@ export function useUpdateDepartment() {
                 name?: string;
                 description?: string;
                 tag?: string;
+                logo?: string; // Logo URL
                 leadId?: string;
                 startDate?: string;
                 endDate?: string;
             }
         }) => api.put<DepartmentWithStats>(`/departments/${id}`, data),
         onSuccess: (_, { id }) => {
+            queryClient.invalidateQueries({ queryKey: departmentsKeys.detail(id) });
+            queryClient.invalidateQueries({ queryKey: departmentsKeys.list() });
+        },
+    });
+}
+
+// Upload department logo
+export function useUploadDepartmentLogo() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ id, file }: { id: string; file: File }) => {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const token = useAuthStore.getState().token;
+
+            const response = await fetch(`${BASE_URL}/departments/${id}/logo`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to upload logo');
+            }
+
+            return response.json() as Promise<DepartmentWithStats>;
+        },
+        onSuccess: (_, { id }) => {
+            queryClient.invalidateQueries({ queryKey: departmentsKeys.detail(id) });
+            queryClient.invalidateQueries({ queryKey: departmentsKeys.list() });
+        },
+    });
+}
+
+// Remove department logo
+export function useRemoveDepartmentLogo() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: string) =>
+            api.delete<DepartmentWithStats>(`/departments/${id}/logo`),
+        onSuccess: (_, id) => {
             queryClient.invalidateQueries({ queryKey: departmentsKeys.detail(id) });
             queryClient.invalidateQueries({ queryKey: departmentsKeys.list() });
         },

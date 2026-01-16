@@ -46,6 +46,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { ImageUpload } from "@/components/ui/image-upload"
 import {
   Search,
   Plus,
@@ -62,24 +63,26 @@ import {
   TrendingUp,
   CheckCircle2,
   Loader2,
-  Target,
-  BarChart3,
+  ImageIcon,
 } from "lucide-react"
 import { toast } from "sonner"
+import { api, BASE_URL } from "@/lib/api/request"
 import type { DepartmentWithStats } from "@/lib/hooks/use-departments"
 
 export default function DepartmentsPage() {
-  const { user } = useAuthStore()
+  const { user, token } = useAuthStore()
   const [searchQuery, setSearchQuery] = useState("")
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [selectedDepartment, setSelectedDepartment] = useState<DepartmentWithStats | null>(null)
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     tag: "#2563eb",
+    logo: "", // Logo URL after upload
     leadId: "",
     startDate: "",
     endDate: "",
@@ -107,6 +110,39 @@ export default function DepartmentsPage() {
     dept.description?.toLowerCase().includes(searchQuery.toLowerCase())
   ) || []
 
+  // Handle logo upload for create form
+  const handleLogoUpload = async (file: File | null) => {
+    if (!file || !user?.companyId) return
+
+    setIsUploadingLogo(true)
+    try {
+      // Upload to storage first
+      const formDataUpload = new FormData()
+      formDataUpload.append('file', file)
+      formDataUpload.append('folder', 'departments/logos')
+
+      const response = await fetch(`${BASE_URL}/storage/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formDataUpload,
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to upload logo')
+      }
+
+      const result = await response.json()
+      setFormData(prev => ({ ...prev, logo: result.url }))
+      toast.success("Logo uploaded!")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload logo")
+    } finally {
+      setIsUploadingLogo(false)
+    }
+  }
+
   // Handlers
   const handleCreateDepartment = async () => {
     if (!formData.name.trim()) {
@@ -119,6 +155,7 @@ export default function DepartmentsPage() {
         name: formData.name,
         description: formData.description || undefined,
         tag: formData.tag || undefined,
+        logo: formData.logo || undefined, // Include logo URL
         leadId: formData.leadId || undefined,
         startDate: formData.startDate || undefined,
         endDate: formData.endDate || undefined,
@@ -151,6 +188,7 @@ export default function DepartmentsPage() {
       name: "",
       description: "",
       tag: "#2563eb",
+      logo: "",
       leadId: "",
       startDate: "",
       endDate: "",
@@ -196,9 +234,12 @@ export default function DepartmentsPage() {
           <p className="text-muted-foreground">Manage your organization's departments and teams</p>
         </div>
         {isCompanyAdmin && (
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <Dialog open={isCreateOpen} onOpenChange={(open) => {
+            setIsCreateOpen(open)
+            if (!open) resetForm()
+          }}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="cursor-pointer">
                 <Plus className="h-4 w-4 mr-2" />
                 Create Department
               </Button>
@@ -211,6 +252,26 @@ export default function DepartmentsPage() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 pt-4">
+                {/* Logo Upload */}
+                <div className="space-y-2">
+                  <Label>Department Logo</Label>
+                  <div className="flex items-center gap-4">
+                    <ImageUpload
+                      value={formData.logo}
+                      onChange={handleLogoUpload}
+                      onRemove={() => setFormData(prev => ({ ...prev, logo: "" }))}
+                      isUploading={isUploadingLogo}
+                      fallback={formData.name?.substring(0, 2).toUpperCase() || "DP"}
+                      shape="square"
+                      size="md"
+                    />
+                    <div className="text-sm text-muted-foreground">
+                      <p>Upload a logo for this department</p>
+                      <p className="text-xs">Recommended: 128x128px, PNG or SVG</p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Basic Info */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2 col-span-2">
@@ -277,26 +338,6 @@ export default function DepartmentsPage() {
                     </Select>
                   </div>
                 </div>
-
-                {/* Date Range */}
-                {/* <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Start Date</Label>
-                    <Input
-                      type="date"
-                      value={formData.startDate}
-                      onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>End Date</Label>
-                    <Input
-                      type="date"
-                      value={formData.endDate}
-                      onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
-                    />
-                  </div>
-                </div> */}
 
                 {/* Members Selection */}
                 <div className="space-y-2">
@@ -375,9 +416,9 @@ export default function DepartmentsPage() {
                 </div>
 
                 <Button
-                  className="w-full"
+                  className="w-full hover-lift cursor-pointer border-sidebar-border border"
                   onClick={handleCreateDepartment}
-                  disabled={createDepartment.isPending}
+                  disabled={createDepartment.isPending || isUploadingLogo}
                 >
                   {createDepartment.isPending ? (
                     <>
@@ -483,10 +524,22 @@ export default function DepartmentsPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div
-                      className="w-4 h-4 rounded-full shrink-0"
-                      style={{ backgroundColor: dept.tag || "#888" }}
-                    />
+                    {/* Department Logo or Color Tag */}
+                    {dept.logo ? (
+                      <Avatar className="h-10 w-10 rounded-lg">
+                        <AvatarImage src={dept.logo} className="object-cover" />
+                        <AvatarFallback className="rounded-lg">
+                          {dept.name.substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    ) : (
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: dept.tag || "#888" }}
+                      >
+                        <Building2 className="h-5 w-5 text-white" />
+                      </div>
+                    )}
                     <div>
                       <CardTitle className="text-lg">
                         <Link
@@ -509,7 +562,7 @@ export default function DepartmentsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                         >
                           <MoreVertical className="h-4 w-4" />
                         </Button>

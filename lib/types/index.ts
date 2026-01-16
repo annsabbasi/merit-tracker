@@ -178,6 +178,9 @@ export interface Company {
     subscriptionEndsAt?: string | null;
     isActive: boolean;
     screenCaptureEnabled?: boolean;
+    // NEW: Track if name has been changed
+    nameChangedAt?: string | null;
+    canChangeName?: boolean; // Helper field from backend
     createdAt: string;
     updatedAt: string;
 }
@@ -188,6 +191,9 @@ export interface CompanyStats {
     totalProjects: number;
     totalSops: number;
     totalDepartments: number;
+    // NEW: Name change tracking
+    canChangeName?: boolean;
+    nameChangedAt?: string | null;
 }
 
 // ============ DEPARTMENT TYPES ============
@@ -196,13 +202,16 @@ export interface Department {
     name: string;
     description?: string | null;
     tag?: string | null;
+    logo?: string | null; // NEW: Department logo
     companyId: string;
     leadId?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
     createdAt: string;
     updatedAt: string;
     lead?: User | null;
     users?: User[];
-    _count?: { users: number };
+    _count?: { users: number; projects: number };
 }
 
 // ============ PROJECT TYPES ============

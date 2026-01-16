@@ -5,7 +5,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { useLogout } from "@/lib/hooks"
+import { useLogout, useMyCompany } from "@/lib/hooks"
 import { useAuthStore } from "@/lib/stores/auth-store"
 import {
   LayoutDashboard,
@@ -37,13 +37,15 @@ const navigation = [
   { name: "SOPs", href: "/dashboard/sops", icon: FileVideo },
   { name: "Manage", href: "/dashboard/manage", icon: Settings },
   { name: "Notifications", href: "/dashboard/notifications", icon: Bell },
-  { name: "Screen Capture", href: "/dashboard/settings/screen-capture", icon: Monitor },
+  { name: "Agent Details", href: "/dashboard/settings/screen-capture", icon: Monitor },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
   const user = useAuthStore((s) => s.user)
   const company: any = useAuthStore((s) => s.company)
+  const { data: companyData } = useMyCompany()
+  console.log("Data of the company", company)
   const logoutMutation = useLogout()
   const [collapsed, setCollapsed] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -111,23 +113,33 @@ export function Sidebar() {
         </div>
 
         {!collapsed && company && user?.role === "COMPANY" && (
-          <div className="p-4 border-b border-sidebar-border">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-              <Building2 className="h-4 w-4" />
-              <span className="truncate">{company.name}</span>
+          <div className="p-4 border-b border-sidebar-border flex items-center justify-between">
+            <div>
+
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                {/* <Building2 className="h-4 w-4" /> */}
+                {/* {console.log("User details", user)} */}
+                <Avatar>
+                  <AvatarImage src={companyData?.logo || "/placeholder.svg"} alt={company.name} />
+                </Avatar>
+                <span className="truncate">{company.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="text-xs bg-muted px-2 py-1 rounded font-mono">{company.companyCode}</code>
+                <Button variant="ghost" size="icon" className="h-6 w-6 cursor-pointer" onClick={copyCompanyCode}>
+                  <Copy className="h-3 w-3" />
+                </Button>
+                {copied && <span className="text-xs text-chart-2">Copied!</span>}
+              </div>
+              {company.plan === "TRIAL" && (
+                <Badge variant="outline" className="mt-2 text-chart-3 border-chart-3">
+                  Trial: {getTrialDaysRemaining()} days left
+                </Badge>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <code className="text-xs bg-muted px-2 py-1 rounded font-mono">{company.companyCode}</code>
-              <Button variant="ghost" size="icon" className="h-6 w-6 cursor-pointer" onClick={copyCompanyCode}>
-                <Copy className="h-3 w-3" />
-              </Button>
-              {copied && <span className="text-xs text-chart-2">Copied!</span>}
-            </div>
-            {company.plan === "TRIAL" && (
-              <Badge variant="outline" className="mt-2 text-chart-3 border-chart-3">
-                Trial: {getTrialDaysRemaining()} days left
-              </Badge>
-            )}
+            <Link className="opacity-40 hover:opacity-80 transition-all duration-300 cursor-pointer" href={'/dashboard/settings/company'}>
+              <Settings className="w-5 h-5" />
+            </Link>
           </div>
         )}
 

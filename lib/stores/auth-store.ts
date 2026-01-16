@@ -14,6 +14,7 @@ interface AuthState {
     login: (token: string, user: AuthUser, company: AuthCompany, subscription: SubscriptionInfo, rememberMe?: boolean) => void;
     logout: () => void;
     setUser: (user: AuthUser) => void;
+    setCompany: (company: AuthCompany) => void; // NEW: Add setCompany
     setSubscription: (subscription: SubscriptionInfo) => void;
 }
 
@@ -52,6 +53,9 @@ export const useAuthStore = create<AuthState>()(
             },
 
             setUser: (user) => set({ user }),
+
+            // NEW: Add setCompany function to update company data
+            setCompany: (company) => set({ company }),
 
             setSubscription: (subscription) => set({ subscription }),
         }),

@@ -68,7 +68,7 @@ export default function LoginPage() {
                   <Building2 className="h-4 w-4" />
                   Company
                 </TabsTrigger>
-                <TabsTrigger value="user" className="flex items-center gap-2 hover-lift  cursor-pointer border-sidebar-border">
+                <TabsTrigger value="user" className="flex items-center gap-2 hover-lift cursor-pointer border-sidebar-border">
                   <User className="h-4 w-4" />
                   User
                 </TabsTrigger>

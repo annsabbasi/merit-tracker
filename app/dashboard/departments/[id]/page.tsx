@@ -79,9 +79,14 @@ import {
   Eye,
   ExternalLink,
   DollarSign,
+  ImageIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 import type { User } from "@/lib/types/index"
+
+import { ImageUpload } from "@/components/ui/image-upload"
+import { useUploadDepartmentLogo, useRemoveDepartmentLogo } from "@/lib/hooks/use-departments"
+import { BASE_URL } from "@/lib/api/request"
 
 export default function DepartmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -132,6 +137,35 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
   const removeUsers = useRemoveUsersFromDepartment()
   const linkProjects = useLinkProjectsToDepartment()
   const unlinkProjects = useUnlinkProjectsFromDepartment()
+  const uploadDepartmentLogo = useUploadDepartmentLogo()
+  const removeDepartmentLogo = useRemoveDepartmentLogo()
+
+  // 3. ADD this state for logo handling:
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+
+  // 4. ADD this handler function:
+  const handleLogoUpload = async (file: File | null) => {
+    if (!file) return
+
+    try {
+      await uploadDepartmentLogo.mutateAsync({
+        id,
+        file,
+      })
+      toast.success("Department logo updated!")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to upload logo")
+    }
+  }
+
+  const handleRemoveLogo = async () => {
+    try {
+      await removeDepartmentLogo.mutateAsync(id)
+      toast.success("Logo removed!")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to remove logo")
+    }
+  }
 
   // Initialize edit form when department loads
   useEffect(() => {
@@ -290,7 +324,7 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
   if (error || !department) {
     return (
       <div className="p-6">
-        <Button variant="ghost" onClick={() => router.back()} className="mb-4">
+        <Button variant="ghost" onClick={() => router.back()} className="mb-4 cursor-pointer">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Departments
         </Button>
@@ -307,7 +341,7 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
   return (
     <div className="p-6 space-y-6">
       {/* Back Button */}
-      <Button variant="ghost" onClick={() => router.back()}>
+      <Button variant="ghost" className="cursor-pointer" onClick={() => router.back()}>
         <ArrowLeft className="h-4 w-4 mr-2" />
         Back to Departments
       </Button>
@@ -315,12 +349,27 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
       {/* Header */}
       <div className="flex flex-col lg:flex-row items-start justify-between gap-4">
         <div className="flex items-start gap-4">
-          <div
+          {/* <div
             className="w-12 h-12 rounded-lg flex items-center justify-center"
             style={{ backgroundColor: department.tag || "#888" }}
           >
             <Building2 className="h-6 w-6 text-white" />
-          </div>
+          </div> */}
+          {department.logo ? (
+            <Avatar className="h-12 w-12 rounded-lg">
+              <AvatarImage src={department.logo} className="object-cover" />
+              <AvatarFallback className="rounded-lg" style={{ backgroundColor: department.tag || "#888" }}>
+                {department.name.substring(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          ) : (
+            <div
+              className="w-12 h-12 rounded-lg flex items-center justify-center"
+              style={{ backgroundColor: department.tag || "#888" }}
+            >
+              <Building2 className="h-6 w-6 text-white" />
+            </div>
+          )}
           <div>
             <h1 className="text-2xl font-bold text-foreground">{department.name}</h1>
             {department.description && (
@@ -347,13 +396,13 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
         </div>
         {isCompanyAdmin && (
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setIsEditOpen(true)}>
+            <Button variant="outline" className="cursor-pointer" onClick={() => setIsEditOpen(true)}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
+                <Button variant="outline" size="icon" className="cursor-pointer">
                   <Settings className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -806,99 +855,150 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
         {/* Settings Tab */}
         <TabsContent value="settings" className="space-y-4">
           {isCompanyAdmin ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Department Settings</CardTitle>
-                <CardDescription>Manage department configuration</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+            <>
+              {/* Department Logo Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5" />
+                    Department Logo
+                  </CardTitle>
+                  <CardDescription>
+                    Upload a logo for this department
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-6">
+                    <ImageUpload
+                      value={department.logo}
+                      onChange={handleLogoUpload}
+                      onRemove={handleRemoveLogo}
+                      isUploading={uploadDepartmentLogo.isPending}
+                      fallback={department.name?.substring(0, 2).toUpperCase() || "DP"}
+                      shape="square"
+                      size="lg"
+                    />
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Current Logo</p>
+                      <p className="text-xs text-muted-foreground">
+                        Recommended: 128x128px or larger, PNG or SVG format
+                      </p>
+                      {department.logo && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleRemoveLogo}
+                          disabled={removeDepartmentLogo.isPending}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          {removeDepartmentLogo.isPending ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4 mr-2" />
+                          )}
+                          Remove Logo
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Department Settings Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Department Settings</CardTitle>
+                  <CardDescription>Manage department configuration</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Department Name</Label>
+                      <Input
+                        value={editForm.name}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Color Tag</Label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={editForm.tag}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, tag: e.target.value }))}
+                          className="w-10 h-10 rounded cursor-pointer"
+                        />
+                        <Input
+                          value={editForm.tag}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, tag: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
                   <div className="space-y-2">
-                    <Label>Department Name</Label>
-                    <Input
-                      value={editForm.name}
-                      onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                    <Label>Description</Label>
+                    <Textarea
+                      rows={3}
+                      value={editForm.description}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Color Tag</Label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={editForm.tag}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, tag: e.target.value }))}
-                        className="w-10 h-10 rounded cursor-pointer"
-                      />
+                    <Label>Department Head</Label>
+                    <Select
+                      value={editForm.leadId || "none"}
+                      onValueChange={(value) => setEditForm(prev => ({
+                        ...prev,
+                        leadId: value === "none" ? "" : value
+                      }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select head" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Head</SelectItem>
+                        {department.users?.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.firstName} {u.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Start Date</Label>
                       <Input
-                        value={editForm.tag}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, tag: e.target.value }))}
+                        type="date"
+                        value={editForm.startDate}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, startDate: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>End Date</Label>
+                      <Input
+                        type="date"
+                        value={editForm.endDate}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, endDate: e.target.value }))}
                       />
                     </div>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea
-                    rows={3}
-                    value={editForm.description}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Department Head</Label>
-                  <Select
-                    value={editForm.leadId || "none"}
-                    onValueChange={(value) => setEditForm(prev => ({
-                      ...prev,
-                      leadId: value === "none" ? "" : value
-                    }))}
+                  <Button
+                    onClick={handleUpdateDepartment}
+                    disabled={updateDepartment.isPending}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select head" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No Head</SelectItem>
-                      {department.users?.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {u.firstName} {u.lastName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Start Date</Label>
-                    <Input
-                      type="date"
-                      value={editForm.startDate}
-                      onChange={(e) => setEditForm(prev => ({ ...prev, startDate: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>End Date</Label>
-                    <Input
-                      type="date"
-                      value={editForm.endDate}
-                      onChange={(e) => setEditForm(prev => ({ ...prev, endDate: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <Button
-                  onClick={handleUpdateDepartment}
-                  disabled={updateDepartment.isPending}
-                >
-                  {updateDepartment.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Changes"
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
+                    {updateDepartment.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Changes"
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </>
           ) : (
             <Card className="p-8 text-center">
               <Settings className="h-12 w-12 mx-auto text-muted-foreground" />
@@ -927,6 +1027,9 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
             </Card>
           )}
         </TabsContent>
+
+
+
       </Tabs>
 
       {/* Edit Department Dialog */}
@@ -992,7 +1095,7 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
               </div>
             </div>
             <Button
-              className="w-full"
+              className="w-full  hover-lift cursor-pointer border-sidebar-border border"
               onClick={handleUpdateDepartment}
               disabled={updateDepartment.isPending}
             >

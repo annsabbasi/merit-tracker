@@ -125,7 +125,7 @@ export default function ProfilePage() {
     const changePassword = useChangePassword()
     const uploadAvatar = useUploadAvatar()
     const deleteAvatar = useDeleteAvatar()
-    const markNotificationsRead = useMarkNotificationsRead()
+    const markNotificationsRead: any = useMarkNotificationsRead()
 
     // Initialize edit form when profile loads
     useEffect(() => {
