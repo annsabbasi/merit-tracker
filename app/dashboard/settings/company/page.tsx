@@ -335,6 +335,7 @@ export default function CompanySettingsPage() {
                     <Button
                         onClick={handleUpdateCompany}
                         disabled={updateCompany.isPending}
+                        className="border cursor-pointer hover:!bg-gray-600/20 focus:text-accent-foreground"
                     >
                         {updateCompany.isPending ? (
                             <>

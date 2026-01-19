@@ -986,6 +986,7 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
                   <Button
                     onClick={handleUpdateDepartment}
                     disabled={updateDepartment.isPending}
+                    className="border cursor-pointer hover:!bg-gray-600/20 focus:text-accent-foreground"
                   >
                     {updateDepartment.isPending ? (
                       <>
@@ -1095,7 +1096,7 @@ export default function DepartmentDetailPage({ params }: { params: Promise<{ id:
               </div>
             </div>
             <Button
-              className="w-full  hover-lift cursor-pointer border-sidebar-border border"
+              className="w-full  hover-lift cursor-pointer border-sidebar-border hover:!bg-gray-600/20 focus:text-accent-foreground"
               onClick={handleUpdateDepartment}
               disabled={updateDepartment.isPending}
             >

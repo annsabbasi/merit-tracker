@@ -1519,7 +1519,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </div>
             </div>
             <Button
-              className="w-full"
+              className="w-full border cursor-pointer hover:!bg-gray-600/20 focus:text-accent-foreground"
               onClick={handleUpdateProject}
               disabled={updateProject.isPending}
             >

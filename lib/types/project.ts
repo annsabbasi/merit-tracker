@@ -3,9 +3,6 @@
 // ============ ENUMS ============
 export type UserRole = 'USER' | 'QC_ADMIN' | 'COMPANY';
 export type SubscriptionStatus = 'TRIAL' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
-export type ProjectStatus = 'PLANNING' | 'IN_PROGRESS' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
-export type ProjectMemberRole = 'MEMBER' | 'QC_ADMIN' | 'LEAD';
-export type SubProjectStatus = 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED';
 export type SopType = 'VIDEO' | 'DOCUMENT' | 'PDF' | 'LINK' | 'IMAGE';
 export type SopStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
 export type NotificationType = 'PROJECT_ASSIGNMENT' | 'TASK_ASSIGNMENT' | 'SOP_APPROVAL' | 'SOP_REJECTION' | 'CHAT_MESSAGE' | 'DEPARTMENT_ASSIGNMENT' | 'ROLE_CHANGE' | 'SYSTEM';
@@ -340,3 +337,11 @@ export interface ApiError {
     message: string;
     error?: string;
 }
+
+export type ProjectStatus = 'PLANNING' | 'IN_PROGRESS' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
+export type ProjectMemberRole = 'MEMBER' | 'QC_ADMIN' | 'LEAD';
+export type SubProjectStatus = 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED';
+export type SubProjectMemberRole = 'MEMBER' | 'CONTRIBUTOR' | 'REVIEWER' | 'QC_HEAD';
+export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'NEEDS_REVISION' | 'COMPLETED' | 'BLOCKED' | 'CANCELLED';
+export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';

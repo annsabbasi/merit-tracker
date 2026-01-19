@@ -1020,7 +1020,7 @@ export default function ProfilePage() {
                         <Button variant="outline" onClick={() => setIsEditOpen(false)}>
                             Cancel
                         </Button>
-                        <Button onClick={handleUpdateProfile} disabled={updateProfile.isPending}>
+                        <Button onClick={handleUpdateProfile} disabled={updateProfile.isPending} className="border cursor-pointer hover:!bg-gray-600/20 focus:text-accent-foreground">
                             {updateProfile.isPending ? (
                                 <>
                                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
