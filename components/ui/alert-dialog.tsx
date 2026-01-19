@@ -124,7 +124,7 @@ function AlertDialogAction({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Action>) {
   return (
     <AlertDialogPrimitive.Action
-      className={cn('border cursor-pointer hover:!bg-gray-600/20 cursor-pointer focus:text-accent-foreground ', buttonVariants(), className)}
+      className={cn('border cursor-pointer hover:!bg-gray-600/20 focus:text-accent-foreground ', buttonVariants(), className)}
       {...props}
     />
   )
