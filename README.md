@@ -1,154 +1,101 @@
-# Merit Tracker Backend
+# Merit Tracker System
 
-Merit Tracker Backend is a robust NestJS application that powers the Merit Tracker employee performance management system. Built with Prisma ORM and Supabase, it provides RESTful APIs for user authentication, project management, task tracking, screen monitoring, quality control, and real-time communication features.
+Merit Tracker is a comprehensive employee performance management system built with Next.js that enables companies to track, manage, and reward employee productivity through a merit-based points system. The application features department management, project tracking, task assignment, screen monitoring, quality control review, and a competitive leaderboard system.
 
 ## Features
 
-1. **Authentication & Authorization**
-   - JWT-based authentication
-   - Role-based access control (Admin, QC Admin, Employee)
-   - Passport strategies for local and JWT authentication
-   - Secure password hashing with bcrypt
-
-2. **Company & User Management**
+1. **Company & User Management**
    - Company registration with unique company codes
-   - User registration and profile management
-   - Automatic user-company association
-   - User role assignment and permissions
+   - User registration linked to company codes
+   - Automatic user assignment to respective companies
 
-3. **Department & Project Management**
-   - CRUD operations for departments
-   - Project creation and assignment within departments
-   - Sub-project management with hierarchical structure
-   - Multi-user collaboration on projects
+2. **Department & Project Organization**
+   - Create and manage multiple departments (Engineering, Design, etc.)
+   - Project creation within departments
+   - Hierarchical project structure for better organization
 
-4. **Task Management**
-   - Task creation and assignment
-   - Subtask management
-   - Task status tracking (Pending, In Progress, Completed, Under Review)
-   - Task submission workflow
+3. **Task Management**
+   - Create subtasks within projects
+   - Assign tasks to individual users or teams
+   - Collaborative work on sub-projects
+   - Task submission and review workflow
 
-5. **Screen Monitoring & Time Tracking**
-   - Desktop agent integration for screen capture
-   - Automated screenshot storage in Supabase
-   - Time tracking with configurable intervals
-   - Activity logs for productivity monitoring
-   - Scheduled tasks for periodic tracking
+4. **Screen Monitoring & Time Tracking**
+   - Desktop application for screen capturing
+   - Mandatory installation for time tracking
+   - Real-time activity monitoring while working on projects
 
-6. **Quality Control System**
-   - QC review workflow for submitted tasks
-   - Merit points allocation system
-   - Task approval and revision management
-   - Performance metrics tracking
+5. **Quality Control System**
+   - QC Admin review process for submitted tasks
+   - Merit points allocation based on task quality
+   - Task approval workflow
 
-7. **Real-time Features**
-   - WebSocket integration with Socket.io
-   - Real-time notifications
-   - Chat system for team communication
-   - Live updates for task and project changes
-
-8. **Additional Features**
-   - SOPs (Standard Operating Procedures) document management
-   - File upload and storage with Supabase Storage
-   - Email notifications with Nodemailer
-   - Leaderboard system for performance tracking
-   - Activity logging and audit trails
-   - API documentation with Swagger
+6. **Additional Features**
+   - SOPs section for uploading documents, videos, and images
+   - Notification system for task updates
+   - Leaderboard for gamified performance tracking
+   - My Tasks dashboard for personal task management
+   - Chat system module (in development)
+   - User profile management
+   - Settings and preferences
 
 ## Tech Stack
 
-### Backend Framework
-- **Framework:** NestJS 11.0.1
-- **Runtime:** Node.js
-- **Language:** TypeScript 5.7.3
+### Frontend
+- **Framework:** Next.js 16.0.10
+- **UI Library:** React 19.2.0
+- **State Management:** Zustand 5.0.9
+- **Data Fetching:** TanStack React Query 5.90.12
+- **Form Handling:** React Hook Form 7.60.0 with Zod validation
+- **Styling:** Tailwind CSS 4.1.9
+- **UI Components:** Shadcn/UI with Radix UI primitives
+- **Icons:** Lucide React
+- **Date Handling:** date-fns
+- **Charts:** Recharts
+- **HTTP Client:** Axios 1.13.2
 - **Package Manager:** pnpm
 
-### Database & ORM
-- **Database:** PostgreSQL (Supabase)
-- **ORM:** Prisma 7.1.0
-- **Database Adapter:** @prisma/adapter-pg
-- **Type-safe Client:** @prisma/client
-
-### Authentication & Security
-- **Authentication:** Passport.js with JWT strategy
-- **Password Hashing:** bcryptjs
-- **JWT:** @nestjs/jwt
-
-### Storage & File Management
-- **Cloud Storage:** Supabase Storage
-- **File Upload:** Multer (via @nestjs/platform-express)
-- **Client:** @supabase/supabase-js
-
-### Real-time Communication
-- **WebSockets:** Socket.io
-- **NestJS Gateway:** @nestjs/websockets
-- **Platform:** @nestjs/platform-socket.io
-
-### Email Service
-- **Email Client:** Nodemailer 7.0.12
-- **SMTP:** Gmail SMTP integration
-
-### Validation & Transformation
-- **Validation:** class-validator
-- **Transformation:** class-transformer
-- **Configuration:** @nestjs/config
-
-### Additional Libraries
-- **Scheduling:** @nestjs/schedule
-- **API Documentation:** @nestjs/swagger
-- **UUID Generation:** uuid
-- **Environment Variables:** dotenv
+### Desktop Application
+- **Electron App** for screen monitoring and time tracking
 
 ## Project Structure
 ```
-merit-tracker-backend/
-├── dist/                      # Compiled JavaScript output
-├── node_modules/              # Dependencies
-├── prisma/                    # Prisma schema and migrations
-│   ├── migrations/           # Database migrations
-│   ├── schema.prisma         # Database schema definition
-│   └── seed.ts               # Database seeding script
-├── src/                       # Source code
-│   ├── modules/              # Feature modules
-│   │   ├── activity-logs/    # Activity tracking module
-│   │   ├── auth/             # Authentication & authorization
-│   │   ├── chat/             # Real-time chat system
-│   │   ├── companies/        # Company management
-│   │   ├── departments/      # Department management
-│   │   ├── desktop-agent/    # Desktop app integration
-│   │   ├── email/            # Email service
-│   │   ├── leaderboard/      # Performance leaderboard
-│   │   ├── notifications/    # Notification system
-│   │   ├── profile/          # User profile management
-│   │   ├── projects/         # Project management
-│   │   ├── scheduled-tasks/  # Cron jobs & scheduled tasks
-│   │   ├── screenshots/      # Screenshot management
-│   │   ├── sops/             # SOPs document management
-│   │   ├── storage/          # File storage service
-│   │   ├── sub-projects/     # Sub-project management
-│   │   ├── tasks/            # Task management
-│   │   ├── time-tracking/    # Time tracking system
-│   │   └── users/            # User management
-│   ├── common/               # Shared utilities and decorators
-│   ├── config/               # Configuration files
-│   ├── guards/               # Authentication guards
-│   ├── interceptors/         # Response interceptors
-│   ├── filters/              # Exception filters
-│   ├── app.module.ts         # Root application module
-│   └── main.ts               # Application entry point
-├── test/                      # E2E tests
-├── .env                       # Environment variables (not in repo)
-├── .env.example              # Environment variables template
-├── .gitignore                # Git ignore rules
-├── .prettierrc               # Prettier configuration
-├── eslint.config.mjs         # ESLint configuration
-├── nest-cli.json             # NestJS CLI configuration
-├── package.json              # Project dependencies
-├── pnpm-lock.yaml            # pnpm lock file
-├── prisma.config.ts          # Prisma configuration
-├── tsconfig.json             # TypeScript configuration
-├── tsconfig.build.json       # TypeScript build configuration
-└── README.md                 # Project documentation
+merit-tracker/
+├── .next/                    # Next.js build output
+├── app/                      # Next.js app directory
+│   ├── (auth)/              # Authentication routes
+│   ├── dashboard/           # Main dashboard routes
+│   │   ├── departments/     # Department management
+│   │   ├── leaderboard/     # Performance leaderboard
+│   │   ├── manage/          # Administrative management
+│   │   ├── my-tasks/        # Personal task dashboard
+│   │   ├── notifications/   # Notification center
+│   │   ├── profile/         # User profile
+│   │   ├── projects/        # Project management
+│   │   ├── qc-review/       # Quality control review
+│   │   ├── screen-monitoring/ # Screen tracking
+│   │   ├── settings/        # Application settings
+│   │   ├── sops/            # Standard operating procedures
+│   │   ├── layout.tsx       # Dashboard layout
+│   │   └── page.tsx         # Dashboard home
+│   ├── globals.css          # Global styles
+│   ├── layout.tsx           # Root layout
+│   └── page.tsx             # Landing page
+├── components/              # Reusable React components
+├── hooks/                   # Custom React hooks
+├── lib/                     # Utility functions and libraries
+├── node_modules/            # Dependencies
+├── public/                  # Static assets
+├── styles/                  # Additional stylesheets
+├── .env                     # Environment variables
+├── .gitignore              # Git ignore rules
+├── components.json         # Shadcn UI configuration
+├── middleware.ts           # Next.js middleware
+├── next.config.mjs         # Next.js configuration
+├── package.json            # Project dependencies
+├── pnpm-lock.yaml          # pnpm lock file
+├── postcss.config.mjs      # PostCSS configuration
+└── tsconfig.json           # TypeScript configuration
 ```
 
 ## Installation & Setup
@@ -156,15 +103,14 @@ merit-tracker-backend/
 ### Prerequisites
 - Node.js (v18 or higher)
 - pnpm package manager
-- PostgreSQL database (Supabase recommended)
-- Supabase account for storage
+- Desktop application (Electron) for screen monitoring
 
-### Backend Setup
+### Frontend Setup
 
 1. **Clone the repository:**
 ```bash
 git clone <repository-url>
-cd merit-tracker-backend
+cd merit-tracker
 ```
 
 2. **Install dependencies:**
@@ -181,380 +127,144 @@ cp .env.example .env
 
 Open `.env` and add your configuration:
 ```env
-# Database Configuration
-DATABASE_URL="postgresql://user:password@host:6543/database?pgbouncer=true"
-DIRECT_URL="postgresql://user:password@host:5432/database"
-
-# JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-JWT_EXPIRATION=7d
-
-# Application
-NODE_ENV=development
-PORT=3001
-FRONTEND_URL=http://localhost:3000
-
-# Supabase Storage
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SUPABASE_STORAGE_BUCKET=sops
-
-# SMTP Email Configuration
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
-SMTP_FROM=noreply@merittracker.com
-SMTP_TLS_CIPHERS=TLSv1.2
-
-# File Upload Settings
-UPLOAD_DESTINATION=./uploads
-MAX_FILE_SIZE=10485760
-
-# Screenshot Settings
-SCREENSHOT_INTERVAL=300000
-SCREENSHOTS_PER_HOUR=6
-
-# Application URLs
-APP_URL=http://localhost:3000
-SUPPORT_EMAIL=support@merittracker.com
+# Add your environment variables here
+NEXT_PUBLIC_API_URL=your_api_url
+# Add other required variables
 ```
 
-5. **Generate Prisma Client:**
+5. **Start the development server:**
 ```bash
-pnpm prisma:generate
+pnpm dev
 ```
 
-6. **Run database migrations:**
-```bash
-pnpm prisma:migrate
-```
-
-7. **Seed the database (optional):**
-```bash
-pnpm prisma:seed
-```
-
-8. **Start the development server:**
-```bash
-pnpm start:dev
-```
-
-The API should now be running at `http://localhost:3001`
+The application should now be running at `http://localhost:3000`
 
 ### Build for Production
 ```bash
 pnpm build
 ```
 ```bash
-pnpm start:prod
+pnpm start
 ```
+
+### Desktop Application Setup
+
+1. **Download and install the Electron desktop application**
+2. **Launch the desktop app before starting time tracking**
+3. **Ensure the app is running in the background during work sessions**
 
 ## Running the Application
 
-### Development Mode
+1. **Start the frontend development server:**
 ```bash
-pnpm start:dev
+pnpm dev
 ```
 
-### Production Mode
-```bash
-pnpm start:prod
-```
+2. **Launch the desktop monitoring application**
 
-### Debug Mode
-```bash
-pnpm start:debug
-```
+3. **Access the application:**
+   - Open your browser and navigate to `http://localhost:3000`
+   - Register your company or log in with company code
+   - Install the desktop app for screen monitoring
 
-## Database Management
+## Application Workflow
 
-### Generate Prisma Client
-```bash
-pnpm prisma:generate
-```
+### For Company Admins:
+1. Register company and receive unique company code
+2. Create departments (Engineering, Design, etc.)
+3. Create projects within departments
+4. Manage users and assign roles
+5. Review QC submissions and allocate merit points
 
-### Create Migration
-```bash
-pnpm prisma:migrate
-```
+### For Employees:
+1. Register using company code
+2. Install desktop monitoring application
+3. View assigned tasks in "My Tasks"
+4. Create and work on subtasks
+5. Track time with screen monitoring active
+6. Submit completed tasks for QC review
+7. Earn merit points and compete on leaderboard
 
-### Deploy Migrations
-```bash
-pnpm prisma:migrate:deploy
-```
-
-### Open Prisma Studio
-```bash
-pnpm prisma:studio
-```
-
-### Seed Database
-```bash
-pnpm prisma:seed
-```
-
-## Testing
-
-### Run Unit Tests
-```bash
-pnpm test
-```
-
-### Run Tests in Watch Mode
-```bash
-pnpm test:watch
-```
-
-### Run E2E Tests
-```bash
-pnpm test:e2e
-```
-
-### Generate Test Coverage
-```bash
-pnpm test:cov
-```
-
-## API Documentation
-
-Once the application is running, access the Swagger API documentation at:
-```
-http://localhost:3001/api/docs
-```
-
-## Available Scripts
-```bash
-# Development
-pnpm start:dev          # Start development server with hot reload
-pnpm start:debug        # Start development server in debug mode
-
-# Production
-pnpm build              # Build the application
-pnpm start:prod         # Start production server
-
-# Code Quality
-pnpm lint               # Run ESLint
-pnpm format             # Format code with Prettier
-
-# Testing
-pnpm test               # Run unit tests
-pnpm test:watch         # Run tests in watch mode
-pnpm test:cov           # Generate test coverage report
-pnpm test:e2e           # Run end-to-end tests
-
-# Database
-pnpm prisma:generate    # Generate Prisma Client
-pnpm prisma:migrate     # Run database migrations
-pnpm prisma:studio      # Open Prisma Studio
-pnpm prisma:seed        # Seed the database
-```
-
-## API Endpoints Overview
-
-### Authentication
-- `POST /auth/register` - User registration
-- `POST /auth/login` - User login
-- `POST /auth/refresh` - Refresh JWT token
-- `GET /auth/profile` - Get current user profile
-
-### Companies
-- `POST /companies` - Create company
-- `GET /companies` - List all companies
-- `GET /companies/:id` - Get company details
-- `PUT /companies/:id` - Update company
-- `DELETE /companies/:id` - Delete company
-
-### Departments
-- `POST /departments` - Create department
-- `GET /departments` - List departments
-- `GET /departments/:id` - Get department details
-- `PUT /departments/:id` - Update department
-- `DELETE /departments/:id` - Delete department
-
-### Projects
-- `POST /projects` - Create project
-- `GET /projects` - List projects
-- `GET /projects/:id` - Get project details
-- `PUT /projects/:id` - Update project
-- `DELETE /projects/:id` - Delete project
-
-### Tasks
-- `POST /tasks` - Create task
-- `GET /tasks` - List tasks
-- `GET /tasks/:id` - Get task details
-- `PUT /tasks/:id` - Update task
-- `POST /tasks/:id/submit` - Submit task for review
-- `POST /tasks/:id/approve` - Approve task (QC Admin)
-- `POST /tasks/:id/reject` - Reject task (QC Admin)
-
-### Screenshots
-- `POST /screenshots/upload` - Upload screenshot
-- `GET /screenshots` - List screenshots
-- `GET /screenshots/:id` - Get screenshot details
-
-### Time Tracking
-- `POST /time-tracking/start` - Start time tracking
-- `POST /time-tracking/stop` - Stop time tracking
-- `GET /time-tracking/logs` - Get time logs
-
-### Leaderboard
-- `GET /leaderboard` - Get leaderboard rankings
-- `GET /leaderboard/user/:id` - Get user ranking
-
-### Notifications
-- `GET /notifications` - Get user notifications
-- `PUT /notifications/:id/read` - Mark notification as read
-- `DELETE /notifications/:id` - Delete notification
-
-### SOPs
-- `POST /sops/upload` - Upload SOP document
-- `GET /sops` - List SOPs
-- `GET /sops/:id` - Get SOP details
-- `DELETE /sops/:id` - Delete SOP
+### Quality Control Process:
+1. Employee submits completed task
+2. Task appears in QC Admin review queue
+3. QC Admin reviews submission
+4. Points allocated based on quality
+5. Task marked as approved/revision needed
+6. Points reflected on leaderboard
 
 ## Key Dependencies
 ```json
 {
-  "@nestjs/common": "^11.0.1",
-  "@nestjs/core": "^11.0.1",
-  "@nestjs/jwt": "^10.2.0",
-  "@nestjs/passport": "^10.0.3",
-  "@nestjs/websockets": "^11.0.1",
-  "@prisma/client": "^7.1.0",
-  "@supabase/supabase-js": "^2.86.2",
-  "bcryptjs": "^3.0.3",
-  "class-validator": "^0.14.0",
-  "passport-jwt": "^4.0.1",
-  "socket.io": "^4.6.0"
+  "@tanstack/react-query": "^5.90.12",
+  "zustand": "^5.0.9",
+  "react-hook-form": "^7.60.0",
+  "zod": "3.25.76",
+  "axios": "^1.13.2",
+  "next": "16.0.10",
+  "react": "19.2.0",
+  "tailwindcss": "^4.1.9"
 }
 ```
 
-## Environment Variables
+## Features in Development
 
-Required environment variables:
-```env
-# Database
-DATABASE_URL              # PostgreSQL connection string
-DIRECT_URL               # Direct PostgreSQL connection (for migrations)
+- Chat system module for team communication
+- Advanced analytics and reporting
+- Mobile application support
+- Enhanced notification system
+- Integration with third-party tools
 
-# JWT
-JWT_SECRET               # Secret key for JWT tokens
-JWT_EXPIRATION          # Token expiration time
+## Technologies Used
 
-# Application
-NODE_ENV                # Environment (development/production)
-PORT                    # Server port
-FRONTEND_URL            # Frontend application URL
-
-# Supabase
-SUPABASE_URL            # Supabase project URL
-SUPABASE_ANON_KEY       # Supabase anonymous key
-SUPABASE_SERVICE_ROLE_KEY # Supabase service role key
-SUPABASE_STORAGE_BUCKET  # Storage bucket name
-
-# SMTP
-SMTP_HOST               # SMTP server host
-SMTP_PORT               # SMTP server port
-SMTP_USER               # SMTP username
-SMTP_PASS               # SMTP password
-SMTP_FROM               # Email sender address
-```
-
-## Architecture Overview
-
-### Module Structure
-The application follows NestJS modular architecture with feature-based modules:
-
-- **Auth Module**: Handles authentication and authorization
-- **Users Module**: User management and profiles
-- **Companies Module**: Company registration and management
-- **Departments Module**: Department organization
-- **Projects Module**: Project lifecycle management
-- **Tasks Module**: Task creation, assignment, and tracking
-- **Time Tracking Module**: Screen monitoring and time logs
-- **Screenshots Module**: Screenshot capture and storage
-- **Notifications Module**: Real-time notifications
-- **Chat Module**: Team communication
-- **Leaderboard Module**: Performance rankings
-- **SOPs Module**: Document management
-- **Email Module**: Email notifications
-- **Storage Module**: File upload and management
-
-### Database Schema
-Built with Prisma ORM, featuring:
-- Relational data modeling
-- Type-safe database queries
-- Automatic migrations
-- Database seeding capabilities
-
-### Authentication Flow
-1. User registers or logs in
-2. Server validates credentials
-3. JWT token generated and returned
-4. Client includes token in subsequent requests
-5. Guards validate token on protected routes
+✔ **Next.js 16** - React Framework  
+✔ **React 19** - UI Library  
+✔ **TypeScript** - Type Safety  
+✔ **TanStack Query** - Server State Management  
+✔ **Zustand** - Client State Management  
+✔ **Tailwind CSS** - Styling  
+✔ **Shadcn/UI** - Component Library  
+✔ **Radix UI** - Headless UI Components  
+✔ **React Hook Form** - Form Management  
+✔ **Zod** - Schema Validation  
+✔ **Axios** - HTTP Client  
+✔ **Electron** - Desktop Application  
+✔ **pnpm** - Package Manager  
 
 ## Troubleshooting
 
-### If the server doesn't start:
+### If the development server doesn't start:
 ```bash
-rm -rf node_modules pnpm-lock.yaml dist
+rm -rf node_modules pnpm-lock.yaml
 ```
 ```bash
 pnpm install
 ```
 ```bash
-pnpm start:dev
+pnpm dev
 ```
 
-### If database migrations fail:
+### If you encounter build errors:
 ```bash
-pnpm prisma:generate
-```
-```bash
-pnpm prisma:migrate:deploy
+pnpm run build --debug
 ```
 
-### If Prisma Client is out of sync:
-```bash
-pnpm prisma:generate
-```
-```bash
-pnpm build
-```
+## Desktop Application
 
-## Security Considerations
+**Note:** The desktop application for screen monitoring is not open source and is provided separately. 
 
-- All passwords are hashed using bcrypt
-- JWT tokens are used for stateless authentication
-- Environment variables store sensitive configuration
-- CORS is configured to allow only trusted origins
-- Input validation using class-validator
-- SQL injection prevention through Prisma ORM
-- Rate limiting on authentication endpoints (recommended)
-
-## Performance Optimization
-
-- Database connection pooling with PgBouncer
-- Efficient database queries with Prisma
-- Caching strategies for frequently accessed data
-- Compressed responses
-- Optimized file uploads to Supabase Storage
+If you need access to the desktop application or have questions about obtaining the screen monitoring software, please contact the project maintainers directly.
 
 ## Contributing
 
-If you'd like to contribute to Merit Tracker Backend:
+If you'd like to contribute to Merit Tracker:
 
 1. Fork the repository
 2. Create a new branch (`git checkout -b feature/improvement`)
 3. Make your changes
-4. Write or update tests
-5. Commit your changes (`git commit -am 'Add new feature'`)
-6. Push to the branch (`git push origin feature/improvement`)
-7. Create a Pull Request
+4. Commit your changes (`git commit -am 'Add new feature'`)
+5. Push to the branch (`git push origin feature/improvement`)
+6. Create a Pull Request
 
 ## License
 
@@ -566,4 +276,4 @@ For support and questions, please [add contact information or issue tracker link
 
 ---
 
-**Note:** Ensure all environment variables are properly configured before running the application. Never commit sensitive credentials to version control. Use `.env.example` as a template for required variables.
+**Important:** Make sure to install and run the desktop monitoring application before starting any time-tracked work sessions. The screen monitoring feature is essential for accurate time tracking and productivity measurement.
