@@ -9,8 +9,10 @@ import {
     useApproveTask,
     useRejectTask,
     getTaskStatusColor,
+    getTaskStatusBadgeColor,
     getPriorityColor,
-    type GranularTask,
+    getTaskStatusLabel,
+    getPriorityLabel,
 } from "@/lib/hooks/use-granular-tasks"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -20,6 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
     Dialog,
     DialogContent,
@@ -29,29 +32,13 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog"
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
     ClipboardCheck,
     CheckCircle2,
@@ -60,12 +47,10 @@ import {
     AlertTriangle,
     Search,
     Filter,
-    MoreVertical,
     Eye,
     ThumbsUp,
     ThumbsDown,
     Calendar,
-    Users,
     Target,
     Loader2,
     RefreshCw,
@@ -74,9 +59,15 @@ import {
     Plus,
     FileText,
     ArrowRight,
+    Users,
+    FolderKanban,
+    Timer,
+    ShieldAlert,
 } from "lucide-react"
 import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
+import Link from "next/link"
+import type { Task, Priority } from "@/lib/types/index"
 
 export default function QCReviewPage() {
     const { user } = useAuthStore()
@@ -85,19 +76,22 @@ export default function QCReviewPage() {
     // State
     const [searchQuery, setSearchQuery] = useState("")
     const [priorityFilter, setPriorityFilter] = useState<string>("all")
-    const [selectedTask, setSelectedTask] = useState<GranularTask | null>(null)
+    const [selectedTask, setSelectedTask] = useState<Task | null>(null)
     const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false)
     const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false)
     const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
 
-    // Form state
+    // Form state for approval
     const [approveNotes, setApproveNotes] = useState("")
     const [bonusPoints, setBonusPoints] = useState(0)
+
+    // Form state for rejection
     const [rejectReason, setRejectReason] = useState("")
     const [pointsToDeduct, setPointsToDeduct] = useState(0)
 
-    // Fetch pending tasks
-    const { data: pendingTasks, isLoading, refetch } = useTasksPendingReview()
+    // Fetch pending tasks - uses GET /tasks/pending-review endpoint
+    // This endpoint is guarded by @Roles(UserRole.QC_ADMIN, UserRole.COMPANY)
+    const { data: pendingTasks, isLoading, refetch, error } = useTasksPendingReview()
 
     // Mutations
     const approveTask = useApproveTask()
@@ -111,10 +105,10 @@ export default function QCReviewPage() {
         return (
             <div className="p-6">
                 <Card className="p-8 text-center">
-                    <AlertTriangle className="h-12 w-12 mx-auto text-yellow-500" />
+                    <ShieldAlert className="h-12 w-12 mx-auto text-yellow-500" />
                     <h2 className="text-xl font-bold mt-4">Access Denied</h2>
                     <p className="text-muted-foreground mt-2">
-                        Only QC Admins and Company Admins can access this page.
+                        Only QC Admins and Company Admins can access the QC Review dashboard.
                     </p>
                     <Button className="mt-4" onClick={() => router.push("/dashboard")}>
                         Go to Dashboard
@@ -124,17 +118,24 @@ export default function QCReviewPage() {
         )
     }
 
-    // Filter tasks
+    // Filter tasks by search and priority
     const filteredTasks = pendingTasks?.filter((task) => {
         const matchesSearch = searchQuery
             ? task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            task.description?.toLowerCase().includes(searchQuery.toLowerCase())
+            task.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            task.subProject?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            task.subProject?.project?.name?.toLowerCase().includes(searchQuery.toLowerCase())
             : true
         const matchesPriority = priorityFilter !== "all" ? task.priority === priorityFilter : true
         return matchesSearch && matchesPriority
     }) || []
 
-    // Handle approve
+    // Group by priority for quick stats
+    const criticalTasks = filteredTasks.filter(t => t.priority === "CRITICAL" || t.priority === "URGENT")
+    const highPriorityTasks = filteredTasks.filter(t => t.priority === "HIGH")
+    const normalTasks = filteredTasks.filter(t => t.priority === "MEDIUM" || t.priority === "LOW")
+
+    // Handle approve - uses PATCH /tasks/:id/approve endpoint
     const handleApprove = async () => {
         if (!selectedTask) return
 
@@ -146,17 +147,19 @@ export default function QCReviewPage() {
                     bonusPoints: bonusPoints > 0 ? bonusPoints : undefined,
                 },
             })
-            toast.success(`Task "${selectedTask.title}" approved! Points awarded.`)
+
+            const totalPoints = (selectedTask.pointsValue || 0) + bonusPoints
+            toast.success(
+                `Task "${selectedTask.title}" approved! ${totalPoints} points awarded to assignee(s).`
+            )
             setIsApproveDialogOpen(false)
-            setSelectedTask(null)
-            setApproveNotes("")
-            setBonusPoints(0)
+            resetApproveForm()
         } catch (error: any) {
             toast.error(error?.message || "Failed to approve task")
         }
     }
 
-    // Handle reject
+    // Handle reject - uses PATCH /tasks/:id/reject endpoint
     const handleReject = async () => {
         if (!selectedTask) return
 
@@ -175,16 +178,26 @@ export default function QCReviewPage() {
             })
             toast.success(`Task "${selectedTask.title}" sent back for revision.`)
             setIsRejectDialogOpen(false)
-            setSelectedTask(null)
-            setRejectReason("")
-            setPointsToDeduct(0)
+            resetRejectForm()
         } catch (error: any) {
             toast.error(error?.message || "Failed to reject task")
         }
     }
 
+    const resetApproveForm = () => {
+        setSelectedTask(null)
+        setApproveNotes("")
+        setBonusPoints(0)
+    }
+
+    const resetRejectForm = () => {
+        setSelectedTask(null)
+        setRejectReason("")
+        setPointsToDeduct(0)
+    }
+
     // Open approve dialog
-    const openApproveDialog = (task: GranularTask) => {
+    const openApproveDialog = (task: Task) => {
         setSelectedTask(task)
         setApproveNotes("")
         setBonusPoints(0)
@@ -192,7 +205,7 @@ export default function QCReviewPage() {
     }
 
     // Open reject dialog
-    const openRejectDialog = (task: GranularTask) => {
+    const openRejectDialog = (task: Task) => {
         setSelectedTask(task)
         setRejectReason("")
         setPointsToDeduct(0)
@@ -200,9 +213,145 @@ export default function QCReviewPage() {
     }
 
     // Open detail dialog
-    const openDetailDialog = (task: GranularTask) => {
+    const openDetailDialog = (task: Task) => {
         setSelectedTask(task)
         setIsDetailDialogOpen(true)
+    }
+
+    // Task Card Component
+    const TaskCard = ({ task }: { task: Task }) => {
+        const isRevision = (task.revisionCount || 0) > 0
+        const waitTime = task.submittedForReviewAt
+            ? formatDistanceToNow(new Date(task.submittedForReviewAt), { addSuffix: true })
+            : "Unknown"
+
+        return (
+            <Card className={`hover:border-primary/50 transition-colors ${isRevision ? "border-orange-500/30" : ""}`}>
+                <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                        {/* Task Info */}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-semibold text-foreground truncate">
+                                    {task.title}
+                                </h3>
+                                <Badge className={getPriorityColor(task.priority)}>
+                                    {getPriorityLabel(task.priority)}
+                                </Badge>
+                                {isRevision && (
+                                    <Badge variant="outline" className="text-orange-500 border-orange-500">
+                                        Revision #{task.revisionCount}
+                                    </Badge>
+                                )}
+                            </div>
+
+                            {task.description && (
+                                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                                    {task.description}
+                                </p>
+                            )}
+
+                            {/* Meta info */}
+                            <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground flex-wrap">
+                                {task.subProject?.project && (
+                                    <Link
+                                        href={`/dashboard/projects/${task.subProject.project.id}`}
+                                        className="flex items-center gap-1 hover:text-primary transition-colors"
+                                    >
+                                        <FolderKanban className="h-3 w-3" />
+                                        {task.subProject.project.name}
+                                    </Link>
+                                )}
+                                {task.subProject && (
+                                    <span className="flex items-center gap-1">
+                                        <ArrowRight className="h-3 w-3" />
+                                        {task.subProject.title}
+                                    </span>
+                                )}
+                                <span className="flex items-center gap-1">
+                                    <Star className="h-3 w-3" />
+                                    {task.pointsValue} pts
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    Submitted {waitTime}
+                                </span>
+                            </div>
+
+                            {/* Assignees */}
+                            <div className="flex items-center gap-2 mt-3">
+                                <span className="text-sm text-muted-foreground">Assignees:</span>
+                                <div className="flex -space-x-2">
+                                    {task.assignees?.slice(0, 4).map((assignee) => (
+                                        <Avatar
+                                            key={assignee.id}
+                                            className="h-6 w-6 border-2 border-background"
+                                        >
+                                            <AvatarImage src={assignee.user.avatar || ""} />
+                                            <AvatarFallback className="text-xs">
+                                                {assignee.user.firstName?.[0]}
+                                                {assignee.user.lastName?.[0]}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                    ))}
+                                    {(task.assignees?.length || 0) > 4 && (
+                                        <span className="text-xs text-muted-foreground ml-2">
+                                            +{(task.assignees?.length || 0) - 4} more
+                                        </span>
+                                    )}
+                                </div>
+                                {task.submittedForReviewBy && (
+                                    <span className="text-sm text-muted-foreground ml-4">
+                                        Submitted by: {task.submittedForReviewBy.firstName}{" "}
+                                        {task.submittedForReviewBy.lastName}
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Previous revision feedback if any */}
+                            {isRevision && task.reviewNotes && (
+                                <div className="mt-3 p-2 rounded bg-orange-500/10 border border-orange-500/20">
+                                    <p className="text-xs text-orange-600">
+                                        <strong>Previous feedback:</strong> {task.reviewNotes}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-col items-end gap-2">
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openDetailDialog(task)}
+                                >
+                                    <Eye className="h-4 w-4 mr-1" />
+                                    View
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="default"
+                                    className="bg-green-600 hover:bg-green-700"
+                                    onClick={() => openApproveDialog(task)}
+                                >
+                                    <ThumbsUp className="h-4 w-4 mr-1" />
+                                    Approve
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => openRejectDialog(task)}
+                                >
+                                    <ThumbsDown className="h-4 w-4 mr-1" />
+                                    Reject
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        )
     }
 
     return (
@@ -229,19 +378,69 @@ export default function QCReviewPage() {
                 </div>
             </div>
 
+            {/* Stats */}
+            <div className="grid gap-4 md:grid-cols-4">
+                <Card>
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-muted-foreground">Total Pending</p>
+                                <p className="text-2xl font-bold text-orange-500">{filteredTasks.length}</p>
+                            </div>
+                            <Timer className="h-8 w-8 text-orange-500" />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className={criticalTasks.length > 0 ? "border-red-500/50" : ""}>
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-muted-foreground">Critical/Urgent</p>
+                                <p className={`text-2xl font-bold ${criticalTasks.length > 0 ? "text-red-500" : "text-muted-foreground"}`}>
+                                    {criticalTasks.length}
+                                </p>
+                            </div>
+                            <AlertTriangle className={`h-8 w-8 ${criticalTasks.length > 0 ? "text-red-500" : "text-muted-foreground"}`} />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-muted-foreground">High Priority</p>
+                                <p className="text-2xl font-bold text-orange-500">{highPriorityTasks.length}</p>
+                            </div>
+                            <Target className="h-8 w-8 text-orange-500" />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-muted-foreground">Normal</p>
+                                <p className="text-2xl font-bold text-muted-foreground">{normalTasks.length}</p>
+                            </div>
+                            <CheckCircle2 className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
             {/* Filters */}
             <div className="flex flex-col sm:flex-row gap-4">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="Search tasks..."
+                        placeholder="Search tasks, projects, subprojects..."
                         className="pl-9"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
                 <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="w-44">
                         <Filter className="h-4 w-4 mr-2" />
                         <SelectValue placeholder="Priority" />
                     </SelectTrigger>
@@ -264,121 +463,53 @@ export default function QCReviewPage() {
                     ))}
                 </div>
             ) : filteredTasks.length > 0 ? (
-                <div className="space-y-4">
-                    {filteredTasks.map((task) => (
-                        <Card key={task.id} className="hover:border-primary/50 transition-colors">
-                            <CardContent className="p-4">
-                                <div className="flex items-start justify-between gap-4">
-                                    {/* Task Info */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <h3 className="font-semibold text-foreground truncate">
-                                                {task.title}
-                                            </h3>
-                                            <Badge className={getPriorityColor(task.priority)}>
-                                                {task.priority}
-                                            </Badge>
-                                            {task.revisionCount > 0 && (
-                                                <Badge variant="outline" className="text-orange-500">
-                                                    Revision #{task.revisionCount}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        {task.description && (
-                                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                                                {task.description}
-                                            </p>
-                                        )}
+                <Tabs defaultValue="all" className="w-full">
+                    <TabsList>
+                        <TabsTrigger value="all">All ({filteredTasks.length})</TabsTrigger>
+                        {criticalTasks.length > 0 && (
+                            <TabsTrigger value="critical" className="text-red-500">
+                                🔴 Critical/Urgent ({criticalTasks.length})
+                            </TabsTrigger>
+                        )}
+                        {highPriorityTasks.length > 0 && (
+                            <TabsTrigger value="high">High ({highPriorityTasks.length})</TabsTrigger>
+                        )}
+                        <TabsTrigger value="normal">Normal ({normalTasks.length})</TabsTrigger>
+                    </TabsList>
 
-                                        {/* Meta info */}
-                                        <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground flex-wrap">
-                                            <span className="flex items-center gap-1">
-                                                <FileText className="h-3 w-3" />
-                                                {task.subProject?.title}
-                                            </span>
-                                            <span className="flex items-center gap-1">
-                                                <ArrowRight className="h-3 w-3" />
-                                                {task.subProject?.project?.name}
-                                            </span>
-                                            <span className="flex items-center gap-1">
-                                                <Target className="h-3 w-3" />
-                                                {task.pointsValue} pts
-                                            </span>
-                                            {task.submittedForReviewAt && (
-                                                <span className="flex items-center gap-1">
-                                                    <Clock className="h-3 w-3" />
-                                                    Submitted{" "}
-                                                    {formatDistanceToNow(new Date(task.submittedForReviewAt), {
-                                                        addSuffix: true,
-                                                    })}
-                                                </span>
-                                            )}
-                                        </div>
+                    <TabsContent value="all" className="space-y-4 mt-4">
+                        {filteredTasks.map((task) => (
+                            <TaskCard key={task.id} task={task} />
+                        ))}
+                    </TabsContent>
 
-                                        {/* Assignees */}
-                                        <div className="flex items-center gap-2 mt-3">
-                                            <span className="text-sm text-muted-foreground">Assignees:</span>
-                                            <div className="flex -space-x-2">
-                                                {task.assignees?.slice(0, 3).map((assignee) => (
-                                                    <Avatar
-                                                        key={assignee.id}
-                                                        className="h-6 w-6 border-2 border-background"
-                                                    >
-                                                        <AvatarImage src={assignee.user.avatar || ""} />
-                                                        <AvatarFallback className="text-xs">
-                                                            {assignee.user.firstName?.[0]}
-                                                            {assignee.user.lastName?.[0]}
-                                                        </AvatarFallback>
-                                                    </Avatar>
-                                                ))}
-                                                {(task.assignees?.length || 0) > 3 && (
-                                                    <span className="text-xs text-muted-foreground ml-2">
-                                                        +{(task.assignees?.length || 0) - 3} more
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {task.submittedForReviewBy && (
-                                                <span className="text-sm text-muted-foreground ml-4">
-                                                    Submitted by: {task.submittedForReviewBy.firstName}{" "}
-                                                    {task.submittedForReviewBy.lastName}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
+                    <TabsContent value="critical" className="space-y-4 mt-4">
+                        {criticalTasks.length > 0 && (
+                            <Alert variant="destructive">
+                                <AlertTriangle className="h-4 w-4" />
+                                <AlertTitle>Critical Tasks</AlertTitle>
+                                <AlertDescription>
+                                    These tasks require immediate attention.
+                                </AlertDescription>
+                            </Alert>
+                        )}
+                        {criticalTasks.map((task) => (
+                            <TaskCard key={task.id} task={task} />
+                        ))}
+                    </TabsContent>
 
-                                    {/* Actions */}
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => openDetailDialog(task)}
-                                        >
-                                            <Eye className="h-4 w-4 mr-1" />
-                                            View
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="default"
-                                            className="bg-green-600 hover:bg-green-700"
-                                            onClick={() => openApproveDialog(task)}
-                                        >
-                                            <ThumbsUp className="h-4 w-4 mr-1" />
-                                            Approve
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="destructive"
-                                            onClick={() => openRejectDialog(task)}
-                                        >
-                                            <ThumbsDown className="h-4 w-4 mr-1" />
-                                            Reject
-                                        </Button>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
+                    <TabsContent value="high" className="space-y-4 mt-4">
+                        {highPriorityTasks.map((task) => (
+                            <TaskCard key={task.id} task={task} />
+                        ))}
+                    </TabsContent>
+
+                    <TabsContent value="normal" className="space-y-4 mt-4">
+                        {normalTasks.map((task) => (
+                            <TaskCard key={task.id} task={task} />
+                        ))}
+                    </TabsContent>
+                </Tabs>
             ) : (
                 <Card className="p-12 text-center">
                     <CheckCircle2 className="h-16 w-16 mx-auto text-green-500" />
@@ -389,7 +520,9 @@ export default function QCReviewPage() {
                 </Card>
             )}
 
-            {/* Approve Dialog */}
+            {/* ============================================ */}
+            {/* APPROVE DIALOG */}
+            {/* ============================================ */}
             <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -403,6 +536,7 @@ export default function QCReviewPage() {
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
+                        {/* Points info */}
                         <div className="p-3 rounded-lg bg-muted/50">
                             <p className="text-sm">
                                 <strong>Base Points:</strong> {selectedTask?.pointsValue || 0} points
@@ -413,6 +547,7 @@ export default function QCReviewPage() {
                             </p>
                         </div>
 
+                        {/* Bonus points */}
                         <div className="space-y-2">
                             <Label>Bonus Points (Optional)</Label>
                             <div className="flex items-center gap-2">
@@ -429,9 +564,7 @@ export default function QCReviewPage() {
                                     className="w-20 text-center"
                                     value={bonusPoints}
                                     onChange={(e) =>
-                                        setBonusPoints(
-                                            Math.min(50, Math.max(0, parseInt(e.target.value) || 0))
-                                        )
+                                        setBonusPoints(Math.min(50, Math.max(0, parseInt(e.target.value) || 0)))
                                     }
                                     min={0}
                                     max={50}
@@ -446,8 +579,12 @@ export default function QCReviewPage() {
                                 </Button>
                                 <span className="text-sm text-muted-foreground">Max: 50</span>
                             </div>
+                            <p className="text-xs text-muted-foreground">
+                                Award bonus points for exceptional work
+                            </p>
                         </div>
 
+                        {/* Notes */}
                         <div className="space-y-2">
                             <Label>Feedback Notes (Optional)</Label>
                             <Textarea
@@ -458,11 +595,17 @@ export default function QCReviewPage() {
                             />
                         </div>
 
+                        {/* Summary */}
                         <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
                             <p className="text-sm text-green-600 font-medium">
                                 Total Points to Award:{" "}
                                 {(selectedTask?.pointsValue || 0) + bonusPoints} points
                             </p>
+                            {(selectedTask?.assignees?.length || 1) > 1 && (
+                                <p className="text-xs text-green-500 mt-1">
+                                    ~{Math.floor(((selectedTask?.pointsValue || 0) + bonusPoints) / (selectedTask?.assignees?.length || 1))} points per assignee
+                                </p>
+                            )}
                         </div>
                     </div>
 
@@ -491,7 +634,9 @@ export default function QCReviewPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Reject Dialog */}
+            {/* ============================================ */}
+            {/* REJECT DIALOG */}
+            {/* ============================================ */}
             <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -505,28 +650,36 @@ export default function QCReviewPage() {
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
-                        {selectedTask && selectedTask.revisionCount > 0 && (
-                            <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
-                                <p className="text-sm text-orange-600">
-                                    ⚠️ This task has already been revised {selectedTask.revisionCount}{" "}
-                                    time(s)
-                                </p>
-                            </div>
+                        {/* Revision warning */}
+                        {selectedTask && (selectedTask.revisionCount || 0) > 0 && (
+                            <Alert variant="destructive">
+                                <AlertTriangle className="h-4 w-4" />
+                                <AlertTitle>Multiple Revisions</AlertTitle>
+                                <AlertDescription>
+                                    This task has already been revised {selectedTask.revisionCount} time(s).
+                                    Consider providing more detailed feedback.
+                                </AlertDescription>
+                            </Alert>
                         )}
 
+                        {/* Reason - REQUIRED */}
                         <div className="space-y-2">
                             <Label>
                                 Reason for Rejection <span className="text-destructive">*</span>
                             </Label>
                             <Textarea
-                                placeholder="Please explain what needs to be fixed..."
+                                placeholder="Please explain what needs to be fixed or improved..."
                                 value={rejectReason}
                                 onChange={(e) => setRejectReason(e.target.value)}
                                 rows={4}
                                 required
                             />
+                            <p className="text-xs text-muted-foreground">
+                                Be specific so the assignee knows what to fix
+                            </p>
                         </div>
 
+                        {/* Points deduction */}
                         <div className="space-y-2">
                             <Label>Points to Deduct (Optional)</Label>
                             <div className="flex items-center gap-2">
@@ -543,9 +696,7 @@ export default function QCReviewPage() {
                                     className="w-20 text-center"
                                     value={pointsToDeduct}
                                     onChange={(e) =>
-                                        setPointsToDeduct(
-                                            Math.min(20, Math.max(0, parseInt(e.target.value) || 0))
-                                        )
+                                        setPointsToDeduct(Math.min(20, Math.max(0, parseInt(e.target.value) || 0)))
                                     }
                                     min={0}
                                     max={20}
@@ -561,7 +712,7 @@ export default function QCReviewPage() {
                                 <span className="text-sm text-muted-foreground">Max: 20</span>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                Points will be deducted from assignees
+                                Points will be deducted from assignees (use sparingly)
                             </p>
                         </div>
                     </div>
@@ -591,9 +742,11 @@ export default function QCReviewPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Task Detail Dialog */}
+            {/* ============================================ */}
+            {/* TASK DETAIL DIALOG */}
+            {/* ============================================ */}
             <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{selectedTask?.title}</DialogTitle>
                         <DialogDescription>Task details and history</DialogDescription>
@@ -602,12 +755,12 @@ export default function QCReviewPage() {
                     {selectedTask && (
                         <div className="space-y-4 py-4">
                             {/* Status and Priority */}
-                            <div className="flex items-center gap-2">
-                                <Badge className={getTaskStatusColor(selectedTask.status)}>
-                                    {selectedTask.status.replace("_", " ")}
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <Badge className={getTaskStatusBadgeColor(selectedTask.status)}>
+                                    {getTaskStatusLabel(selectedTask.status)}
                                 </Badge>
                                 <Badge className={getPriorityColor(selectedTask.priority)}>
-                                    {selectedTask.priority}
+                                    {getPriorityLabel(selectedTask.priority)}
                                 </Badge>
                                 <Badge variant="outline">
                                     <Star className="h-3 w-3 mr-1" />
@@ -619,7 +772,9 @@ export default function QCReviewPage() {
                             {selectedTask.description && (
                                 <div>
                                     <h4 className="font-medium mb-1">Description</h4>
-                                    <p className="text-muted-foreground">{selectedTask.description}</p>
+                                    <p className="text-muted-foreground whitespace-pre-wrap">
+                                        {selectedTask.description}
+                                    </p>
                                 </div>
                             )}
 
@@ -633,9 +788,12 @@ export default function QCReviewPage() {
                                 </div>
                                 <div>
                                     <h4 className="font-medium mb-1">Project</h4>
-                                    <p className="text-muted-foreground">
+                                    <Link
+                                        href={`/dashboard/projects/${selectedTask.subProject?.project?.id}`}
+                                        className="text-primary hover:underline"
+                                    >
                                         {selectedTask.subProject?.project?.name}
-                                    </p>
+                                    </Link>
                                 </div>
                             </div>
 
@@ -655,7 +813,7 @@ export default function QCReviewPage() {
                                                     {assignee.user.lastName?.[0]}
                                                 </AvatarFallback>
                                             </Avatar>
-                                            <div>
+                                            <div className="flex-1">
                                                 <p className="font-medium">
                                                     {assignee.user.firstName} {assignee.user.lastName}
                                                 </p>
@@ -664,7 +822,7 @@ export default function QCReviewPage() {
                                                 </p>
                                             </div>
                                             {assignee.isCompleted && (
-                                                <Badge className="ml-auto bg-green-500">Completed</Badge>
+                                                <Badge className="bg-green-500">Marked Complete</Badge>
                                             )}
                                         </div>
                                     ))}
@@ -672,7 +830,7 @@ export default function QCReviewPage() {
                             </div>
 
                             {/* Revision History */}
-                            {selectedTask.revisionCount > 0 && (
+                            {(selectedTask.revisionCount || 0) > 0 && (
                                 <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
                                     <h4 className="font-medium text-orange-600 mb-1">
                                         Revision History
@@ -682,14 +840,19 @@ export default function QCReviewPage() {
                                     </p>
                                     {selectedTask.reviewNotes && (
                                         <p className="text-sm mt-2">
-                                            <strong>Last feedback:</strong> {selectedTask.reviewNotes}
+                                            <strong>Previous feedback:</strong> {selectedTask.reviewNotes}
+                                        </p>
+                                    )}
+                                    {(selectedTask.pointsDeducted || 0) > 0 && (
+                                        <p className="text-sm text-red-500 mt-1">
+                                            Points deducted so far: {selectedTask.pointsDeducted}
                                         </p>
                                     )}
                                 </div>
                             )}
 
                             {/* Timestamps */}
-                            <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="grid grid-cols-2 gap-4 text-sm border-t pt-4">
                                 <div>
                                     <span className="text-muted-foreground">Created:</span>{" "}
                                     {new Date(selectedTask.createdAt).toLocaleString()}
@@ -704,6 +867,12 @@ export default function QCReviewPage() {
                                     <div>
                                         <span className="text-muted-foreground">Submitted:</span>{" "}
                                         {new Date(selectedTask.submittedForReviewAt).toLocaleString()}
+                                    </div>
+                                )}
+                                {selectedTask.estimatedMinutes && (
+                                    <div>
+                                        <span className="text-muted-foreground">Estimated:</span>{" "}
+                                        {selectedTask.estimatedMinutes} minutes
                                     </div>
                                 )}
                             </div>

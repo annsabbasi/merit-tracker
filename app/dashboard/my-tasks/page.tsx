@@ -8,9 +8,13 @@ import {
     useUpdateGranularTask,
     useSubmitTaskForReview,
     getTaskStatusColor,
+    getTaskStatusBadgeColor,
     getPriorityColor,
-    type GranularTask,
+    getTaskStatusLabel,
+    getPriorityLabel,
+    getReviewStatusInfo,
     type TaskStatus,
+    type Priority,
 } from "@/lib/hooks/use-granular-tasks"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -56,10 +60,12 @@ import {
     FileText,
     AlertCircle,
     XCircle,
+    FolderKanban,
 } from "lucide-react"
 import { toast } from "sonner"
-import { formatDistanceToNow } from "date-fns"
 import Link from "next/link"
+import type { Task } from "@/lib/types/index"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // Status icons mapping
 const statusIcons: Record<TaskStatus, any> = {
@@ -77,25 +83,27 @@ export default function MyTasksPage() {
     const [searchQuery, setSearchQuery] = useState("")
     const [statusFilter, setStatusFilter] = useState<string>("all")
     const [priorityFilter, setPriorityFilter] = useState<string>("all")
-    const [selectedTask, setSelectedTask] = useState<GranularTask | null>(null)
+    const [selectedTask, setSelectedTask] = useState<Task | null>(null)
     const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false)
     const [submitNotes, setSubmitNotes] = useState("")
 
-    // Fetch my tasks
+    // Fetch my tasks - uses GET /tasks/my-tasks endpoint
     const { data: tasks, isLoading, refetch } = useMyGranularTasks({
         status: statusFilter !== "all" ? (statusFilter as TaskStatus) : undefined,
-        priority: priorityFilter !== "all" ? (priorityFilter as any) : undefined,
+        priority: priorityFilter !== "all" ? (priorityFilter as Priority) : undefined,
     })
 
     // Mutations
     const updateTask = useUpdateGranularTask()
     const submitForReview = useSubmitTaskForReview()
 
-    // Filter tasks
+    // Filter tasks by search
     const filteredTasks = tasks?.filter((task) => {
         const matchesSearch = searchQuery
             ? task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            task.description?.toLowerCase().includes(searchQuery.toLowerCase())
+            task.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            task.subProject?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            task.subProject?.project?.name?.toLowerCase().includes(searchQuery.toLowerCase())
             : true
         return matchesSearch
     }) || []
@@ -106,6 +114,7 @@ export default function MyTasksPage() {
     const inReviewTasks = filteredTasks.filter((t) => t.status === "IN_REVIEW")
     const needsRevisionTasks = filteredTasks.filter((t) => t.status === "NEEDS_REVISION")
     const completedTasks = filteredTasks.filter((t) => t.status === "COMPLETED")
+    const blockedTasks = filteredTasks.filter((t) => t.status === "BLOCKED")
 
     // Calculate stats
     const totalTasks = filteredTasks.length
@@ -113,21 +122,22 @@ export default function MyTasksPage() {
     const completionRate = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0
     const totalPoints = filteredTasks.reduce((sum, t) => sum + (t.pointsValue || 0), 0)
     const earnedPoints = completedTasks.reduce((sum, t) => sum + (t.pointsValue || 0), 0)
+    const pendingRevisionCount = needsRevisionTasks.length
 
-    // Handle status change
-    const handleStatusChange = async (task: GranularTask, newStatus: TaskStatus) => {
+    // Handle status change - uses PUT /tasks/:id endpoint
+    const handleStatusChange = async (task: Task, newStatus: TaskStatus) => {
         try {
             await updateTask.mutateAsync({
                 id: task.id,
                 data: { status: newStatus },
             })
-            toast.success(`Task moved to ${newStatus.replace("_", " ")}`)
+            toast.success(`Task moved to ${getTaskStatusLabel(newStatus)}`)
         } catch (error: any) {
             toast.error(error?.message || "Failed to update task")
         }
     }
 
-    // Handle submit for review
+    // Handle submit for review - uses PATCH /tasks/:id/submit-for-review endpoint
     const handleSubmitForReview = async () => {
         if (!selectedTask) return
 
@@ -146,16 +156,17 @@ export default function MyTasksPage() {
     }
 
     // Open submit dialog
-    const openSubmitDialog = (task: GranularTask) => {
+    const openSubmitDialog = (task: Task) => {
         setSelectedTask(task)
         setSubmitNotes("")
         setIsSubmitDialogOpen(true)
     }
 
     // Render task card
-    const TaskCard = ({ task }: { task: GranularTask }) => {
+    const TaskCard = ({ task }: { task: Task }) => {
         const StatusIcon = statusIcons[task.status] || Circle
         const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "COMPLETED"
+        const canSubmit = task.status === "IN_PROGRESS" || task.status === "NEEDS_REVISION"
 
         return (
             <Card className={`hover:border-primary/50 transition-colors ${isOverdue ? "border-red-500/50" : ""}`}>
@@ -177,34 +188,82 @@ export default function MyTasksPage() {
                                 </p>
                             )}
 
-                            {/* Meta info */}
+                            {/* Meta info - Project/SubProject navigation */}
                             <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground flex-wrap">
-                                <span className="flex items-center gap-1">
-                                    <FileText className="h-3 w-3" />
-                                    {task.subProject?.title}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                    <ArrowRight className="h-3 w-3" />
-                                    {task.subProject?.project?.name}
-                                </span>
+                                {task.subProject?.project && (
+                                    <Link
+                                        href={`/dashboard/projects/${task.subProject.project.id}`}
+                                        className="flex items-center gap-1 hover:text-primary transition-colors"
+                                    >
+                                        <FolderKanban className="h-3 w-3" />
+                                        {task.subProject.project.name}
+                                    </Link>
+                                )}
+                                {task.subProject && (
+                                    <span className="flex items-center gap-1">
+                                        <ArrowRight className="h-3 w-3" />
+                                        {task.subProject.title}
+                                    </span>
+                                )}
                                 <span className="flex items-center gap-1">
                                     <Star className="h-3 w-3" />
                                     {task.pointsValue} pts
                                 </span>
                                 {task.dueDate && (
-                                    <span className={`flex items-center gap-1 ${isOverdue ? "text-red-500" : ""}`}>
+                                    <span className={`flex items-center gap-1 ${isOverdue ? "text-red-500 font-medium" : ""}`}>
                                         <Calendar className="h-3 w-3" />
                                         {isOverdue ? "Overdue: " : "Due: "}
                                         {new Date(task.dueDate).toLocaleDateString()}
                                     </span>
                                 )}
+                                {task.estimatedMinutes && (
+                                    <span className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3" />
+                                        {task.estimatedMinutes}m
+                                    </span>
+                                )}
                             </div>
+
+                            {/* Assignees */}
+                            {task.assignees && task.assignees.length > 1 && (
+                                <div className="flex items-center gap-2 mt-2">
+                                    <span className="text-xs text-muted-foreground">Co-assignees:</span>
+                                    <div className="flex -space-x-2">
+                                        {task.assignees
+                                            .filter(a => a.userId !== user?.id)
+                                            .slice(0, 3)
+                                            .map((assignee) => (
+                                                <Avatar key={assignee.id} className="h-5 w-5 border-2 border-background">
+                                                    <AvatarImage src={assignee.user.avatar || ""} />
+                                                    <AvatarFallback className="text-[10px]">
+                                                        {assignee.user.firstName?.[0]}
+                                                        {assignee.user.lastName?.[0]}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                            ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Revision notice */}
                             {task.status === "NEEDS_REVISION" && task.reviewNotes && (
                                 <div className="mt-3 p-2 rounded bg-red-500/10 border border-red-500/20">
                                     <p className="text-sm text-red-600">
-                                        <strong>Feedback:</strong> {task.reviewNotes}
+                                        <strong>Reviewer Feedback:</strong> {task.reviewNotes}
+                                    </p>
+                                    {task.revisionCount > 0 && (
+                                        <p className="text-xs text-red-500 mt-1">
+                                            Revision #{task.revisionCount}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Completed info */}
+                            {task.status === "COMPLETED" && task.reviewedAt && (
+                                <div className="mt-3 p-2 rounded bg-green-500/10 border border-green-500/20">
+                                    <p className="text-sm text-green-600">
+                                        ✅ Approved on {new Date(task.reviewedAt).toLocaleDateString()}
                                     </p>
                                 </div>
                             )}
@@ -213,11 +272,11 @@ export default function MyTasksPage() {
                         {/* Badges and actions */}
                         <div className="flex flex-col items-end gap-2">
                             <div className="flex items-center gap-2">
-                                <Badge className={getTaskStatusColor(task.status)}>
-                                    {task.status.replace("_", " ")}
+                                <Badge className={getTaskStatusBadgeColor(task.status)}>
+                                    {getTaskStatusLabel(task.status)}
                                 </Badge>
                                 <Badge className={getPriorityColor(task.priority)}>
-                                    {task.priority}
+                                    {getPriorityLabel(task.priority)}
                                 </Badge>
                             </div>
 
@@ -234,26 +293,32 @@ export default function MyTasksPage() {
                                         Start
                                     </Button>
                                 )}
-                                {(task.status === "IN_PROGRESS" || task.status === "NEEDS_REVISION") && (
+                                {canSubmit && (
                                     <Button
                                         size="sm"
                                         variant="default"
                                         onClick={() => openSubmitDialog(task)}
                                     >
                                         <Send className="h-3 w-3 mr-1" />
-                                        Submit
+                                        Submit for Review
                                     </Button>
                                 )}
                                 {task.status === "IN_REVIEW" && (
-                                    <Badge variant="outline" className="text-orange-500">
+                                    <Badge variant="outline" className="text-orange-500 border-orange-500">
                                         <Clock className="h-3 w-3 mr-1" />
-                                        Pending Review
+                                        Pending QC Review
                                     </Badge>
                                 )}
                                 {task.status === "COMPLETED" && (
-                                    <Badge variant="outline" className="text-green-500">
+                                    <Badge variant="outline" className="text-green-500 border-green-500">
                                         <CheckCircle2 className="h-3 w-3 mr-1" />
                                         Approved
+                                    </Badge>
+                                )}
+                                {task.status === "BLOCKED" && (
+                                    <Badge variant="outline" className="text-purple-500 border-purple-500">
+                                        <AlertTriangle className="h-3 w-3 mr-1" />
+                                        Blocked
                                     </Badge>
                                 )}
                             </div>
@@ -284,7 +349,7 @@ export default function MyTasksPage() {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-5">
                 <Card>
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
@@ -314,10 +379,23 @@ export default function MyTasksPage() {
                             <div>
                                 <p className="text-sm text-muted-foreground">In Progress</p>
                                 <p className="text-2xl font-bold text-blue-500">
-                                    {inProgressTasks.length + needsRevisionTasks.length}
+                                    {inProgressTasks.length}
                                 </p>
                             </div>
                             <Timer className="h-8 w-8 text-blue-500" />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className={pendingRevisionCount > 0 ? "border-red-500/50" : ""}>
+                    <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-muted-foreground">Needs Revision</p>
+                                <p className={`text-2xl font-bold ${pendingRevisionCount > 0 ? "text-red-500" : "text-muted-foreground"}`}>
+                                    {pendingRevisionCount}
+                                </p>
+                            </div>
+                            <AlertCircle className={`h-8 w-8 ${pendingRevisionCount > 0 ? "text-red-500" : "text-muted-foreground"}`} />
                         </div>
                     </CardContent>
                 </Card>
@@ -342,14 +420,14 @@ export default function MyTasksPage() {
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="Search tasks..."
+                        placeholder="Search tasks, projects, subprojects..."
                         className="pl-9"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="w-44">
                         <Filter className="h-4 w-4 mr-2" />
                         <SelectValue placeholder="Status" />
                     </SelectTrigger>
@@ -360,6 +438,7 @@ export default function MyTasksPage() {
                         <SelectItem value="IN_REVIEW">In Review</SelectItem>
                         <SelectItem value="NEEDS_REVISION">Needs Revision</SelectItem>
                         <SelectItem value="COMPLETED">Completed</SelectItem>
+                        <SelectItem value="BLOCKED">Blocked</SelectItem>
                     </SelectContent>
                 </Select>
                 <Select value={priorityFilter} onValueChange={setPriorityFilter}>
@@ -387,7 +466,7 @@ export default function MyTasksPage() {
                 </div>
             ) : (
                 <Tabs defaultValue="all" className="w-full">
-                    <TabsList className="w-full justify-start overflow-x-auto">
+                    <TabsList className="w-full justify-start overflow-x-auto flex-wrap">
                         <TabsTrigger value="all">
                             All ({filteredTasks.length})
                         </TabsTrigger>
@@ -399,7 +478,7 @@ export default function MyTasksPage() {
                         </TabsTrigger>
                         {needsRevisionTasks.length > 0 && (
                             <TabsTrigger value="needs_revision" className="text-red-500">
-                                Needs Revision ({needsRevisionTasks.length})
+                                ⚠️ Needs Revision ({needsRevisionTasks.length})
                             </TabsTrigger>
                         )}
                         <TabsTrigger value="in_review">
@@ -408,6 +487,11 @@ export default function MyTasksPage() {
                         <TabsTrigger value="completed">
                             Completed ({completedTasks.length})
                         </TabsTrigger>
+                        {blockedTasks.length > 0 && (
+                            <TabsTrigger value="blocked">
+                                Blocked ({blockedTasks.length})
+                            </TabsTrigger>
+                        )}
                     </TabsList>
 
                     <TabsContent value="all" className="space-y-4 mt-4">
@@ -422,7 +506,7 @@ export default function MyTasksPage() {
                         {todoTasks.length > 0 ? (
                             todoTasks.map((task) => <TaskCard key={task.id} task={task} />)
                         ) : (
-                            <EmptyState message="No tasks to do" />
+                            <EmptyState message="No tasks to do" description="Great job! You've started all your tasks." />
                         )}
                     </TabsContent>
 
@@ -430,15 +514,24 @@ export default function MyTasksPage() {
                         {inProgressTasks.length > 0 ? (
                             inProgressTasks.map((task) => <TaskCard key={task.id} task={task} />)
                         ) : (
-                            <EmptyState message="No tasks in progress" />
+                            <EmptyState message="No tasks in progress" description="Start a task from the 'To Do' tab." />
                         )}
                     </TabsContent>
 
                     <TabsContent value="needs_revision" className="space-y-4 mt-4">
                         {needsRevisionTasks.length > 0 ? (
-                            needsRevisionTasks.map((task) => <TaskCard key={task.id} task={task} />)
+                            <>
+                                <Alert variant="destructive">
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertTitle>Action Required</AlertTitle>
+                                    <AlertDescription>
+                                        These tasks have been reviewed and need your attention. Please address the feedback and resubmit.
+                                    </AlertDescription>
+                                </Alert>
+                                {needsRevisionTasks.map((task) => <TaskCard key={task.id} task={task} />)}
+                            </>
                         ) : (
-                            <EmptyState message="No tasks needing revision" />
+                            <EmptyState message="No tasks needing revision" description="All your submissions have passed review!" />
                         )}
                     </TabsContent>
 
@@ -446,7 +539,7 @@ export default function MyTasksPage() {
                         {inReviewTasks.length > 0 ? (
                             inReviewTasks.map((task) => <TaskCard key={task.id} task={task} />)
                         ) : (
-                            <EmptyState message="No tasks in review" />
+                            <EmptyState message="No tasks in review" description="Submit completed tasks for QC review." />
                         )}
                     </TabsContent>
 
@@ -454,7 +547,15 @@ export default function MyTasksPage() {
                         {completedTasks.length > 0 ? (
                             completedTasks.map((task) => <TaskCard key={task.id} task={task} />)
                         ) : (
-                            <EmptyState message="No completed tasks" />
+                            <EmptyState message="No completed tasks" description="Complete and get tasks approved to see them here." />
+                        )}
+                    </TabsContent>
+
+                    <TabsContent value="blocked" className="space-y-4 mt-4">
+                        {blockedTasks.length > 0 ? (
+                            blockedTasks.map((task) => <TaskCard key={task.id} task={task} />)
+                        ) : (
+                            <EmptyState message="No blocked tasks" />
                         )}
                     </TabsContent>
                 </Tabs>
@@ -466,10 +567,10 @@ export default function MyTasksPage() {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Send className="h-5 w-5 text-primary" />
-                            Submit for Review
+                            Submit for QC Review
                         </DialogTitle>
                         <DialogDescription>
-                            Submit "{selectedTask?.title}" for QC review.
+                            Submit "{selectedTask?.title}" for quality control review.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -479,14 +580,17 @@ export default function MyTasksPage() {
                                 <strong>Points Value:</strong> {selectedTask?.pointsValue || 0} points
                             </p>
                             <p className="text-sm text-muted-foreground mt-1">
-                                Once approved, you'll earn these points.
+                                Once approved by QC, you'll earn these points.
                             </p>
                         </div>
 
                         {selectedTask?.revisionCount && selectedTask.revisionCount > 0 && (
                             <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
                                 <p className="text-sm text-orange-600">
-                                    This is revision #{selectedTask.revisionCount + 1}
+                                    ⚠️ This is revision #{selectedTask.revisionCount + 1}
+                                </p>
+                                <p className="text-xs text-orange-500 mt-1">
+                                    Make sure you've addressed all feedback before resubmitting.
                                 </p>
                             </div>
                         )}
@@ -494,10 +598,10 @@ export default function MyTasksPage() {
                         <div className="space-y-2">
                             <Label>Notes for Reviewer (Optional)</Label>
                             <Textarea
-                                placeholder="Describe what you've done, any changes made, etc..."
+                                placeholder="Describe what you've completed, any changes made, or important notes for the reviewer..."
                                 value={submitNotes}
                                 onChange={(e) => setSubmitNotes(e.target.value)}
-                                rows={3}
+                                rows={4}
                             />
                         </div>
                     </div>
@@ -530,14 +634,18 @@ export default function MyTasksPage() {
 }
 
 // Empty state component
-function EmptyState({ message = "No tasks found" }: { message?: string }) {
+function EmptyState({
+    message = "No tasks found",
+    description = "Tasks assigned to you will appear here."
+}: {
+    message?: string
+    description?: string
+}) {
     return (
         <Card className="p-12 text-center">
             <Target className="h-16 w-16 mx-auto text-muted-foreground" />
             <h3 className="text-lg font-semibold mt-4">{message}</h3>
-            <p className="text-muted-foreground mt-2">
-                Tasks assigned to you will appear here.
-            </p>
+            <p className="text-muted-foreground mt-2">{description}</p>
         </Card>
     )
 }
