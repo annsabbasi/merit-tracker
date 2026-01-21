@@ -268,7 +268,7 @@ If you'd like to contribute to Merit Tracker:
 
 ## License
 
-[Add your license information here]
+This project is licensed under the [MIT License](./LICENSE).
 
 ## Support
 
