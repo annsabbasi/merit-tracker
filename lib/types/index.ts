@@ -1,27 +1,19 @@
 // src/lib/types/index.ts
 
 // ============ ENUMS ============
-export type UserRole = 'USER' | 'QC_ADMIN' | 'COMPANY';
+export type UserRole = 'USER' | 'QC_ADMIN' | 'COMPANY' | 'SUPER_ADMIN';
 export type SubscriptionStatus = 'TRIAL' | 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
 export type ProjectStatus = 'PLANNING' | 'IN_PROGRESS' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED';
 export type ProjectMemberRole = 'MEMBER' | 'QC_ADMIN' | 'LEAD';
 export type SubProjectStatus = 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED';
+export type SubProjectMemberRole = 'MEMBER' | 'CONTRIBUTOR' | 'REVIEWER' | 'QC_HEAD';
+export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'NEEDS_REVISION' | 'COMPLETED' | 'BLOCKED' | 'CANCELLED';
+export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
+export type LeaderboardPeriod = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | 'ALL_TIME';
 export type SopType = 'VIDEO' | 'DOCUMENT' | 'PDF' | 'LINK' | 'IMAGE';
 export type SopStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
 
-// NEW: SubProject member roles
-export type SubProjectMemberRole = 'MEMBER' | 'CONTRIBUTOR' | 'REVIEWER' | 'QC_HEAD';
-
-// NEW: Task status (granular tasks within SubProjects)
-export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED' | 'BLOCKED' | 'CANCELLED';
-
-// NEW: Priority levels
-export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | 'CRITICAL';
-
-// NEW: Leaderboard periods
-export type LeaderboardPeriod = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY' | 'ALL_TIME';
-
-// NEW: Achievement types
 export type AchievementType =
     | 'FIRST_TASK_COMPLETED'
     | 'TASKS_10_COMPLETED'
@@ -48,7 +40,6 @@ export type AchievementType =
     | 'ZERO_DEFECTS'
     | 'CUSTOM';
 
-// Updated notification types
 export type NotificationType =
     | 'PROJECT_ASSIGNMENT'
     | 'TASK_ASSIGNMENT'
@@ -62,14 +53,18 @@ export type NotificationType =
     | 'TIME_DEDUCTED'
     | 'AGENT_OFFLINE'
     | 'AGENT_INSTALLED'
-    // NEW: SubProject and Task notifications
     | 'SUBPROJECT_ASSIGNMENT'
     | 'SUBPROJECT_MEMBER_ADDED'
     | 'SUBPROJECT_QC_HEAD_ASSIGNED'
     | 'TASK_CREATED'
     | 'TASK_COMPLETED'
     | 'TASK_REASSIGNED'
-    // NEW: Leaderboard and Achievement notifications
+    | 'TASK_SUBMITTED_FOR_REVIEW'
+    | 'TASK_APPROVED'
+    | 'TASK_REJECTED'
+    | 'TASK_REVISION_REQUESTED'
+    | 'POINTS_AWARDED'
+    | 'POINTS_DEDUCTED'
     | 'LEADERBOARD_RANK_CHANGED'
     | 'ACHIEVEMENT_EARNED'
     | 'STREAK_MILESTONE';
@@ -84,7 +79,6 @@ export interface AuthUser {
     companyId: string;
     avatar?: string | null;
     points: number;
-    // NEW: Performance stats
     totalTasksCompleted?: number;
     totalTimeTrackedMinutes?: number;
     currentStreak?: number;
@@ -155,7 +149,6 @@ export interface User {
     createdAt: string;
     updatedAt: string;
     department?: Department | null;
-    // NEW: Performance tracking fields
     totalTasksCompleted?: number;
     totalTimeTrackedMinutes?: number;
     totalPointsEarned?: number;
@@ -178,9 +171,8 @@ export interface Company {
     subscriptionEndsAt?: string | null;
     isActive: boolean;
     screenCaptureEnabled?: boolean;
-    // NEW: Track if name has been changed
     nameChangedAt?: string | null;
-    canChangeName?: boolean; // Helper field from backend
+    canChangeName?: boolean;
     createdAt: string;
     updatedAt: string;
 }
@@ -191,7 +183,6 @@ export interface CompanyStats {
     totalProjects: number;
     totalSops: number;
     totalDepartments: number;
-    // NEW: Name change tracking
     canChangeName?: boolean;
     nameChangedAt?: string | null;
 }
@@ -202,7 +193,7 @@ export interface Department {
     name: string;
     description?: string | null;
     tag?: string | null;
-    logo?: string | null; // NEW: Department logo
+    logo?: string | null;
     companyId: string;
     leadId?: string | null;
     startDate?: string | null;
@@ -244,10 +235,9 @@ export interface Project {
     projectLeadId?: string | null;
     startDate?: string | null;
     endDate?: string | null;
-    // Screen capture fields
     screenCaptureEnabled?: boolean;
     screenCaptureInterval?: number;
-    screenMonitoringEnabled?: boolean; // Legacy
+    screenMonitoringEnabled?: boolean;
     createdAt: string;
     updatedAt: string;
     projectLead?: ProjectLead | null;
@@ -285,14 +275,13 @@ export interface ProjectStats {
     totalTimeTrackedHours: number;
 }
 
-// ============ SUB-PROJECT TYPES (ENHANCED) ============
+// ============ SUB-PROJECT TYPES ============
 export interface SubProjectMember {
     id: string;
     subProjectId: string;
     userId: string;
     role: SubProjectMemberRole;
     joinedAt: string;
-    // Performance tracking per member
     tasksCompleted: number;
     totalTimeMinutes: number;
     pointsEarned: number;
@@ -304,11 +293,11 @@ export interface SubProject {
     title: string;
     description?: string | null;
     projectId: string;
-    assignedToId?: string | null; // Legacy
+    assignedToId?: string | null;
     createdById: string;
-    qcHeadId?: string | null; // NEW: QC Head
+    qcHeadId?: string | null;
     status: SubProjectStatus;
-    priority?: Priority;
+    priority: Priority;
     pointsValue: number;
     estimatedHours?: number | null;
     actualHours?: number | null;
@@ -317,17 +306,40 @@ export interface SubProject {
     totalTimeSpent?: number;
     createdAt: string;
     updatedAt: string;
-    project?: { id: string; name: string; projectLeadId?: string; companyId?: string };
-    assignedTo?: User | null; // Legacy
-    createdBy?: User;
-    qcHead?: User | null; // NEW
-    members?: SubProjectMember[]; // NEW
-    tasks?: Task[]; // NEW
-    stats?: SubProjectStats; // NEW
+    project?: {
+        id: string;
+        name: string;
+        projectLeadId?: string;
+        companyId?: string;
+        projectLead?: {
+            id: string;
+            firstName: string;
+            lastName: string;
+        };
+    };
+    assignedTo?: User | null;
+    createdBy?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        avatar?: string | null;
+    };
+    qcHead?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        avatar?: string | null;
+        email?: string;
+        role?: string;
+    } | null;
+    members?: SubProjectMember[];
+    tasks?: Task[];
+    timeTrackings?: TimeTracking[];
+    stats?: SubProjectStats;
     _count?: {
+        tasks: number;
         timeTrackings: number;
-        members?: number;
-        tasks?: number;
+        members: number;
     };
 }
 
@@ -346,16 +358,31 @@ export interface SubProjectStats {
         totalHours: number;
         sessionCount: number;
     };
-    memberPerformance?: Array<{
-        user: User;
-        role: SubProjectMemberRole;
-        tasksCompleted: number;
-        totalTimeMinutes: number;
-        pointsEarned: number;
-    }>;
 }
 
-// ============ TASK TYPES (NEW - Granular tasks within SubProjects) ============
+// ============ TASK TYPES (Granular Tasks within SubProjects) ============
+export interface TaskAssignee {
+    id: string;
+    taskId: string;
+    userId: string;
+    assignedAt: string;
+    assignedById?: string;
+    isCompleted: boolean;
+    completedAt?: string;
+    user: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        avatar?: string | null;
+        email?: string;
+    };
+    assignedBy?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+    };
+}
+
 export interface Task {
     id: string;
     title: string;
@@ -373,13 +400,48 @@ export interface Task {
     completedAt?: string | null;
     createdAt: string;
     updatedAt: string;
-    subProject?: SubProject;
+    // Review workflow fields
+    submittedForReviewAt?: string | null;
+    submittedForReviewById?: string | null;
+    reviewedAt?: string | null;
+    reviewedById?: string | null;
+    reviewStatus?: ReviewStatus | null;
+    reviewNotes?: string | null;
+    revisionCount: number;
+    pointsDeducted: number;
+    // Relations
+    subProject?: SubProject & {
+        project?: {
+            id: string;
+            name: string;
+            projectLeadId?: string;
+            companyId?: string;
+        };
+    };
     assignedTo?: User | null;
-    createdBy?: User;
-    _count?: { timeTrackings: number };
+    createdBy?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+    };
+    submittedForReviewBy?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+    } | null;
+    reviewedBy?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+    } | null;
+    assignees?: TaskAssignee[];
+    _count?: {
+        timeTrackings: number;
+        assignees: number;
+    };
 }
 
-// ============ LEADERBOARD TYPES (NEW) ============
+// ============ LEADERBOARD TYPES ============
 export interface LeaderboardEntry {
     rank: number;
     user: {
@@ -414,6 +476,11 @@ export interface LeaderboardResponse {
     leaderboard: LeaderboardEntry[];
 }
 
+export interface ProjectLeaderboardEntry extends LeaderboardEntry {
+    role: ProjectMemberRole;
+    projectPointsEarned: number;
+}
+
 export interface ProjectLeaderboardResponse {
     projectId: string;
     projectName: string;
@@ -421,39 +488,41 @@ export interface ProjectLeaderboardResponse {
     startDate: string;
     endDate: string | null;
     totalMembers: number;
-    leaderboard: Array<LeaderboardEntry & {
-        role: ProjectMemberRole;
-        projectPointsEarned: number;
-    }>;
+    leaderboard: ProjectLeaderboardEntry[];
 }
 
-export interface SubProjectLeaderboardResponse {
+export interface SubProjectLeaderboardEntry {
+    id: string;
     subProjectId: string;
-    subProjectTitle: string;
-    projectName: string;
-    period: LeaderboardPeriod;
-    startDate: string;
-    endDate: string | null;
-    totalMembers: number;
-    leaderboard: Array<{
-        rank: number;
-        user: User;
-        role: SubProjectMemberRole;
-        memberStats: {
-            tasksCompleted: number;
-            totalTimeMinutes: number;
-            pointsEarned: number;
-        };
-        periodStats: {
-            tasksCompleted: number;
-            totalMinutes: number;
-            totalHours: number;
-        };
-        performanceScore: number;
-    }>;
+    userId: string;
+    role: SubProjectMemberRole;
+    tasksCompleted: number;
+    totalTimeMinutes: number;
+    pointsEarned: number;
+    joinedAt: string;
+    user: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        avatar?: string | null;
+        email?: string;
+        points?: number;
+    };
 }
 
-// ============ USER PERFORMANCE TYPES (NEW) ============
+// ============ USER PERFORMANCE TYPES ============
+export interface Achievement {
+    id?: string;
+    userId?: string;
+    companyId?: string;
+    type: AchievementType;
+    title: string;
+    description: string;
+    iconUrl?: string | null;
+    earnedAt: string;
+    metadata?: Record<string, any>;
+}
+
 export interface UserPerformance {
     user: {
         id: string;
@@ -507,19 +576,6 @@ export interface UserPerformance {
         date: string;
         minutesWorked: number;
     }>;
-}
-
-// ============ ACHIEVEMENT TYPES (NEW) ============
-export interface Achievement {
-    id?: string;
-    userId?: string;
-    companyId?: string;
-    type: AchievementType;
-    title: string;
-    description: string;
-    iconUrl?: string | null;
-    earnedAt: string;
-    metadata?: Record<string, any>;
 }
 
 // ============ TIME TRACKING TYPES ============

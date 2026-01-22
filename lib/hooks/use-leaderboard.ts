@@ -1,9 +1,17 @@
 // src/lib/hooks/use-leaderboard.ts
-// Connects to the NEW /leaderboard endpoints from the backend
+// Complete Leaderboard hooks aligned with backend leaderboard.controller.ts
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/request';
-import type { LeaderboardPeriod } from '@/lib/types/index';
+import type {
+    LeaderboardPeriod,
+    LeaderboardResponse,
+    LeaderboardEntry,
+    ProjectLeaderboardResponse,
+    UserPerformance,
+    Achievement,
+    AchievementType,
+} from '@/lib/types/index';
 
 export const leaderboardKeys = {
     all: ['leaderboard'] as const,
@@ -18,6 +26,9 @@ export const leaderboardKeys = {
     myAchievements: () => [...leaderboardKeys.all, 'my-achievements'] as const,
 };
 
+// ============================================
+// QUERY PARAMS
+// ============================================
 export interface LeaderboardQueryParams {
     period?: LeaderboardPeriod;
     projectId?: string;
@@ -34,120 +45,16 @@ export interface PerformanceQueryParams {
     endDate?: string;
 }
 
-// Response types matching backend
-export interface LeaderboardEntry {
-    rank: number;
-    user: {
-        id: string;
-        firstName: string;
-        lastName: string;
-        avatar?: string | null;
-        email: string;
-    };
-    metrics: {
-        tasksCompleted: number;
-        totalMinutes: number;
-        totalHours: number;
-        pointsEarned: number;
-        subProjectsContributed: number;
-        projectsContributed: number;
-        averageTaskCompletionTime: number;
-        sessionCount?: number;
-    };
-    performanceScore: number;
-    currentStreak?: number;
-    longestStreak?: number;
-    trend: 'up' | 'down' | 'stable';
-    previousRank?: number;
-}
-
-export interface LeaderboardResponse {
-    period: LeaderboardPeriod;
-    startDate: string;
-    endDate: string | null;
-    totalParticipants: number;
-    leaderboard: LeaderboardEntry[];
-}
-
-export interface ProjectLeaderboardEntry extends LeaderboardEntry {
-    role: string;
-    projectPointsEarned: number;
-}
-
-export interface ProjectLeaderboardResponse {
-    projectId: string;
-    projectName: string;
-    period: LeaderboardPeriod;
-    startDate: string;
-    endDate: string | null;
-    totalMembers: number;
-    leaderboard: ProjectLeaderboardEntry[];
-}
-
-export interface Achievement {
-    id?: string;
-    type: string;
-    title: string;
-    description: string;
-    iconUrl?: string | null;
-    earnedAt: string;
-    metadata?: Record<string, any>;
-}
-
-export interface UserPerformance {
-    user: {
-        id: string;
-        firstName: string;
-        lastName: string;
-        avatar?: string | null;
-        email: string;
-        role: string;
-        totalPoints: number;
-    };
-    currentPeriod: {
-        tasksCompleted: number;
-        totalMinutes: number;
-        totalHours: number;
-        pointsEarned: number;
-        subProjectsContributed: number;
-        projectsContributed: number;
-        sessionCount: number;
-        averageTaskCompletionTime: number;
-        performanceScore: number;
-    };
-    previousPeriod: {
-        tasksCompleted: number;
-        totalMinutes: number;
-        performanceScore: number;
-    };
-    change: {
-        tasksCompletedChange: number;
-        tasksCompletedPercentage: number;
-        timeChange: number;
-        timeChangePercentage: number;
-        scoreChange: number;
-    };
-    rank: {
-        current: number;
-        previous: number;
-        change: number;
-    };
-    achievements: Achievement[];
-    streaks: {
-        current: number;
-        longest: number;
-    };
-    allTimeStats: {
-        totalTasksCompleted: number;
-        totalTimeMinutes: number;
-        totalTimeHours: number;
-        lastActiveDate?: string | null;
-    };
-    recentActivity: Array<{
-        date: string;
-        minutesWorked: number;
-    }>;
-}
+// Re-export types for convenience
+export type {
+    LeaderboardPeriod,
+    LeaderboardResponse,
+    LeaderboardEntry,
+    ProjectLeaderboardResponse,
+    UserPerformance,
+    Achievement,
+    AchievementType,
+};
 
 // ============================================
 // GET COMPANY LEADERBOARD
@@ -305,6 +212,7 @@ export function getAchievementIcon(type: string): string {
         NIGHT_OWL: '🦉',
         QUALITY_CHAMPION: '✅',
         ZERO_DEFECTS: '💪',
+        CUSTOM: '🏅',
     };
     return icons[type] || '🏅';
 }
@@ -322,4 +230,99 @@ export function formatPeriodLabel(period: LeaderboardPeriod): string {
         ALL_TIME: 'All Time',
     };
     return labels[period] || period;
+}
+
+// ============================================
+// HELPER: Get period date range description
+// ============================================
+export function getPeriodDateRange(period: LeaderboardPeriod): { start: Date; end: Date } {
+    const now = new Date();
+    let start: Date;
+    const end = now;
+
+    switch (period) {
+        case 'DAILY':
+            start = new Date(now.setHours(0, 0, 0, 0));
+            break;
+        case 'WEEKLY':
+            start = new Date(now);
+            start.setDate(now.getDate() - now.getDay());
+            start.setHours(0, 0, 0, 0);
+            break;
+        case 'MONTHLY':
+            start = new Date(now.getFullYear(), now.getMonth(), 1);
+            break;
+        case 'QUARTERLY':
+            const quarter = Math.floor(now.getMonth() / 3);
+            start = new Date(now.getFullYear(), quarter * 3, 1);
+            break;
+        case 'YEARLY':
+            start = new Date(now.getFullYear(), 0, 1);
+            break;
+        case 'ALL_TIME':
+        default:
+            start = new Date(0);
+            break;
+    }
+
+    return { start, end };
+}
+
+// ============================================
+// HELPER: Calculate time change percentage
+// ============================================
+export function calculateChangePercentage(current: number, previous: number): number {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return Math.round(((current - previous) / previous) * 100);
+}
+
+// ============================================
+// HELPER: Format hours from minutes
+// ============================================
+export function formatHoursFromMinutes(minutes: number): string {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours === 0) return `${mins}m`;
+    if (mins === 0) return `${hours}h`;
+    return `${hours}h ${mins}m`;
+}
+
+// ============================================
+// HELPER: Get streak milestone message
+// ============================================
+export function getStreakMilestoneMessage(streak: number): string | null {
+    const milestones = [7, 14, 30, 60, 90, 180, 365];
+    if (milestones.includes(streak)) {
+        if (streak === 7) return '🔥 1 week streak!';
+        if (streak === 14) return '🔥 2 weeks streak!';
+        if (streak === 30) return '🌟 1 month streak!';
+        if (streak === 60) return '🌟 2 months streak!';
+        if (streak === 90) return '💎 3 months streak!';
+        if (streak === 180) return '💎 6 months streak!';
+        if (streak === 365) return '🎖️ 1 year streak!';
+    }
+    return null;
+}
+
+// ============================================
+// HELPER: Get performance level
+// ============================================
+export function getPerformanceLevel(score: number): {
+    level: string;
+    color: string;
+    description: string;
+} {
+    if (score >= 90) {
+        return { level: 'Elite', color: 'text-purple-500', description: 'Top performer!' };
+    }
+    if (score >= 75) {
+        return { level: 'Expert', color: 'text-blue-500', description: 'Excellent performance' };
+    }
+    if (score >= 50) {
+        return { level: 'Proficient', color: 'text-green-500', description: 'Good progress' };
+    }
+    if (score >= 25) {
+        return { level: 'Developing', color: 'text-yellow-500', description: 'Keep improving' };
+    }
+    return { level: 'Beginner', color: 'text-gray-500', description: 'Just getting started' };
 }

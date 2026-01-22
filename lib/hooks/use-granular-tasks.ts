@@ -1,11 +1,12 @@
 // src/lib/hooks/use-granular-tasks.ts
-// This hook is for the actual Task model (granular tasks within SubProjects)
-// NOT to be confused with use-tasks.ts which actually uses SubProjects
+// Complete Task hooks for granular tasks within SubProjects
+// Aligned with backend tasks.controller.ts
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/request';
 import { subProjectsKeys } from './use-sub-projects';
-import type { TaskStatus, Priority, ReviewStatus } from '@/lib/types/index';
+import { leaderboardKeys } from './use-leaderboard';
+import type { Task, TaskStatus, Priority, ReviewStatus, TaskAssignee } from '@/lib/types/index';
 
 export const granularTasksKeys = {
     all: ['granular-tasks'] as const,
@@ -16,8 +17,11 @@ export const granularTasksKeys = {
     detail: (id: string) => [...granularTasksKeys.all, 'detail', id] as const,
 };
 
+// Re-export types for convenience
+export type { Task as GranularTask, TaskStatus, Priority, ReviewStatus, TaskAssignee };
+
 // ============================================
-// TYPES
+// QUERY PARAMS
 // ============================================
 export interface TaskQueryParams {
     status?: TaskStatus;
@@ -28,101 +32,15 @@ export interface TaskQueryParams {
     pendingReview?: boolean;
 }
 
-export interface TaskAssignee {
-    id: string;
-    taskId: string;
-    userId: string;
-    assignedAt: string;
-    assignedById?: string;
-    isCompleted: boolean;
-    completedAt?: string;
-    user: {
-        id: string;
-        firstName: string;
-        lastName: string;
-        avatar?: string;
-        email?: string;
-    };
-    assignedBy?: {
-        id: string;
-        firstName: string;
-        lastName: string;
-    };
-}
-
-export interface GranularTask {
-    id: string;
-    title: string;
-    description?: string;
-    subProjectId: string;
-    assignedToId?: string; // Legacy
-    createdById: string;
-    status: TaskStatus;
-    priority: Priority;
-    pointsValue: number;
-    estimatedMinutes?: number;
-    actualMinutes?: number;
-    dueDate?: string;
-    startedAt?: string;
-    completedAt?: string;
-    createdAt: string;
-    updatedAt: string;
-    // Review workflow fields
-    submittedForReviewAt?: string;
-    submittedForReviewById?: string;
-    reviewedAt?: string;
-    reviewedById?: string;
-    reviewStatus?: ReviewStatus;
-    reviewNotes?: string;
-    revisionCount: number;
-    pointsDeducted: number;
-    // Relations
-    subProject?: {
-        id: string;
-        title: string;
-        qcHeadId?: string;
-        createdById: string;
-        project?: {
-            id: string;
-            name: string;
-            projectLeadId?: string;
-            companyId?: string;
-        };
-    };
-    assignedTo?: {
-        id: string;
-        firstName: string;
-        lastName: string;
-        avatar?: string;
-    };
-    createdBy?: {
-        id: string;
-        firstName: string;
-        lastName: string;
-    };
-    submittedForReviewBy?: {
-        id: string;
-        firstName: string;
-        lastName: string;
-    };
-    reviewedBy?: {
-        id: string;
-        firstName: string;
-        lastName: string;
-    };
-    assignees?: TaskAssignee[];
-    _count?: {
-        timeTrackings: number;
-        assignees: number;
-    };
-}
-
+// ============================================
+// DTOs matching backend
+// ============================================
 export interface CreateTaskDto {
     title: string;
     description?: string;
     subProjectId: string;
     assigneeIds?: string[];
-    assignedToId?: string; // Legacy
+    assignedToId?: string; // Legacy - use assigneeIds
     status?: TaskStatus;
     priority?: Priority;
     pointsValue?: number;
@@ -138,6 +56,14 @@ export interface UpdateTaskDto {
     pointsValue?: number;
     estimatedMinutes?: number;
     dueDate?: string;
+}
+
+export interface AssignTaskDto {
+    userIds: string[];
+}
+
+export interface UnassignTaskDto {
+    userIds: string[];
 }
 
 export interface SubmitForReviewDto {
@@ -158,7 +84,7 @@ export interface BulkUpdateResult {
     results: Array<{
         taskId: string;
         success: boolean;
-        task?: GranularTask;
+        task?: Task;
         error?: string;
     }>;
     summary: {
@@ -175,7 +101,7 @@ export interface BulkUpdateResult {
 export function useTasksBySubProject(subProjectId: string, filters?: TaskQueryParams) {
     return useQuery({
         queryKey: granularTasksKeys.bySubProject(subProjectId, filters),
-        queryFn: () => api.get<GranularTask[]>(`/tasks/sub-project/${subProjectId}`, filters),
+        queryFn: () => api.get<Task[]>(`/tasks/sub-project/${subProjectId}`, filters),
         enabled: !!subProjectId,
     });
 }
@@ -187,7 +113,7 @@ export function useTasksBySubProject(subProjectId: string, filters?: TaskQueryPa
 export function useMyGranularTasks(filters?: TaskQueryParams) {
     return useQuery({
         queryKey: granularTasksKeys.myTasks(filters),
-        queryFn: () => api.get<GranularTask[]>('/tasks/my-tasks', filters),
+        queryFn: () => api.get<Task[]>('/tasks/my-tasks', filters),
     });
 }
 
@@ -198,7 +124,7 @@ export function useMyGranularTasks(filters?: TaskQueryParams) {
 export function useTasksPendingReview() {
     return useQuery({
         queryKey: granularTasksKeys.pendingReview(),
-        queryFn: () => api.get<GranularTask[]>('/tasks/pending-review'),
+        queryFn: () => api.get<Task[]>('/tasks/pending-review'),
         refetchInterval: 30000, // Refresh every 30 seconds
     });
 }
@@ -210,7 +136,7 @@ export function useTasksPendingReview() {
 export function useGranularTask(id: string) {
     return useQuery({
         queryKey: granularTasksKeys.detail(id),
-        queryFn: () => api.get<GranularTask>(`/tasks/${id}`),
+        queryFn: () => api.get<Task>(`/tasks/${id}`),
         enabled: !!id,
     });
 }
@@ -223,7 +149,7 @@ export function useCreateGranularTask() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (data: CreateTaskDto) => api.post<GranularTask>('/tasks', data),
+        mutationFn: (data: CreateTaskDto) => api.post<Task>('/tasks', data),
         onSuccess: (res) => {
             queryClient.invalidateQueries({
                 queryKey: granularTasksKeys.bySubProject(res.subProjectId)
@@ -245,7 +171,7 @@ export function useUpdateGranularTask() {
 
     return useMutation({
         mutationFn: ({ id, data }: { id: string; data: UpdateTaskDto }) =>
-            api.put<GranularTask>(`/tasks/${id}`, data),
+            api.put<Task>(`/tasks/${id}`, data),
         onSuccess: (res, { id }) => {
             queryClient.invalidateQueries({ queryKey: granularTasksKeys.detail(id) });
             queryClient.invalidateQueries({
@@ -280,7 +206,7 @@ export function useAssignUsersToTask() {
 
     return useMutation({
         mutationFn: ({ id, userIds }: { id: string; userIds: string[] }) =>
-            api.patch<GranularTask>(`/tasks/${id}/assign`, { userIds }),
+            api.patch<Task>(`/tasks/${id}/assign`, { userIds }),
         onSuccess: (res, { id }) => {
             queryClient.invalidateQueries({ queryKey: granularTasksKeys.detail(id) });
             queryClient.invalidateQueries({
@@ -299,7 +225,7 @@ export function useUnassignUsersFromTask() {
 
     return useMutation({
         mutationFn: ({ id, userIds }: { id: string; userIds: string[] }) =>
-            api.patch<GranularTask>(`/tasks/${id}/unassign`, { userIds }),
+            api.patch<Task>(`/tasks/${id}/unassign`, { userIds }),
         onSuccess: (res, { id }) => {
             queryClient.invalidateQueries({ queryKey: granularTasksKeys.detail(id) });
             queryClient.invalidateQueries({
@@ -318,7 +244,7 @@ export function useSubmitTaskForReview() {
 
     return useMutation({
         mutationFn: ({ id, data }: { id: string; data?: SubmitForReviewDto }) =>
-            api.patch<GranularTask>(`/tasks/${id}/submit-for-review`, data || {}),
+            api.patch<Task>(`/tasks/${id}/submit-for-review`, data || {}),
         onSuccess: (res, { id }) => {
             queryClient.invalidateQueries({ queryKey: granularTasksKeys.detail(id) });
             queryClient.invalidateQueries({
@@ -339,15 +265,16 @@ export function useApproveTask() {
 
     return useMutation({
         mutationFn: ({ id, data }: { id: string; data?: ApproveTaskDto }) =>
-            api.patch<GranularTask>(`/tasks/${id}/approve`, data || {}),
+            api.patch<Task>(`/tasks/${id}/approve`, data || {}),
         onSuccess: (res, { id }) => {
             queryClient.invalidateQueries({ queryKey: granularTasksKeys.detail(id) });
             queryClient.invalidateQueries({
                 queryKey: granularTasksKeys.bySubProject(res.subProjectId)
             });
             queryClient.invalidateQueries({ queryKey: granularTasksKeys.pendingReview() });
+            queryClient.invalidateQueries({ queryKey: granularTasksKeys.myTasks() });
             // Also refresh leaderboard since points were awarded
-            queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+            queryClient.invalidateQueries({ queryKey: leaderboardKeys.all });
         },
     });
 }
@@ -361,13 +288,14 @@ export function useRejectTask() {
 
     return useMutation({
         mutationFn: ({ id, data }: { id: string; data: RejectTaskDto }) =>
-            api.patch<GranularTask>(`/tasks/${id}/reject`, data),
+            api.patch<Task>(`/tasks/${id}/reject`, data),
         onSuccess: (res, { id }) => {
             queryClient.invalidateQueries({ queryKey: granularTasksKeys.detail(id) });
             queryClient.invalidateQueries({
                 queryKey: granularTasksKeys.bySubProject(res.subProjectId)
             });
             queryClient.invalidateQueries({ queryKey: granularTasksKeys.pendingReview() });
+            queryClient.invalidateQueries({ queryKey: granularTasksKeys.myTasks() });
         },
     });
 }
@@ -422,15 +350,31 @@ export function getTaskStatusColor(status: TaskStatus): string {
 }
 
 // ============================================
+// HELPER: Get status badge color (for Badge component)
+// ============================================
+export function getTaskStatusBadgeColor(status: TaskStatus): string {
+    const colors: Record<TaskStatus, string> = {
+        TODO: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+        IN_PROGRESS: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+        IN_REVIEW: 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300',
+        NEEDS_REVISION: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
+        COMPLETED: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
+        BLOCKED: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
+        CANCELLED: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500',
+    };
+    return colors[status] || colors.TODO;
+}
+
+// ============================================
 // HELPER: Get priority color
 // ============================================
 export function getPriorityColor(priority: Priority): string {
     const colors: Record<Priority, string> = {
-        LOW: 'bg-gray-500/10 text-gray-500',
-        MEDIUM: 'bg-blue-500/10 text-blue-500',
-        HIGH: 'bg-orange-500/10 text-orange-500',
-        URGENT: 'bg-red-500/10 text-red-500',
-        CRITICAL: 'bg-red-600/20 text-red-600',
+        LOW: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+        MEDIUM: 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400',
+        HIGH: 'bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-400',
+        URGENT: 'bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400',
+        CRITICAL: 'bg-red-200 text-red-700 dark:bg-red-900 dark:text-red-300',
     };
     return colors[priority] || colors.MEDIUM;
 }
@@ -438,7 +382,7 @@ export function getPriorityColor(priority: Priority): string {
 // ============================================
 // HELPER: Get review status info
 // ============================================
-export function getReviewStatusInfo(status?: ReviewStatus): {
+export function getReviewStatusInfo(status?: ReviewStatus | null): {
     label: string;
     color: string;
     icon: string;
@@ -451,4 +395,61 @@ export function getReviewStatusInfo(status?: ReviewStatus): {
         REJECTED: { label: 'Needs Revision', color: 'text-red-500', icon: '❌' },
     };
     return info[status];
+}
+
+// ============================================
+// HELPER: Get status label (human readable)
+// ============================================
+export function getTaskStatusLabel(status: TaskStatus): string {
+    const labels: Record<TaskStatus, string> = {
+        TODO: 'To Do',
+        IN_PROGRESS: 'In Progress',
+        IN_REVIEW: 'In Review',
+        NEEDS_REVISION: 'Needs Revision',
+        COMPLETED: 'Completed',
+        BLOCKED: 'Blocked',
+        CANCELLED: 'Cancelled',
+    };
+    return labels[status] || status;
+}
+
+// ============================================
+// HELPER: Get priority label
+// ============================================
+export function getPriorityLabel(priority: Priority): string {
+    return priority.charAt(0) + priority.slice(1).toLowerCase();
+}
+
+// ============================================
+// HELPER: Check if task can be edited
+// ============================================
+export function canEditTask(task: Task, userId: string, userRole: string): boolean {
+    if (userRole === 'COMPANY' || userRole === 'QC_ADMIN') return true;
+    if (task.createdById === userId) return true;
+    if (task.subProject?.qcHeadId === userId) return true;
+    if (task.subProject?.createdById === userId) return true;
+    if (task.subProject?.project?.projectLeadId === userId) return true;
+    if (task.assignees?.some(a => a.userId === userId)) return true;
+    return false;
+}
+
+// ============================================
+// HELPER: Check if task can be submitted for review
+// ============================================
+export function canSubmitForReview(task: Task, userId: string): boolean {
+    if (task.status !== 'IN_PROGRESS' && task.status !== 'NEEDS_REVISION') return false;
+    if (task.assignees?.some(a => a.userId === userId)) return true;
+    if (task.createdById === userId) return true;
+    return false;
+}
+
+// ============================================
+// HELPER: Check if user can review task
+// ============================================
+export function canReviewTask(task: Task, userId: string, userRole: string): boolean {
+    if (task.status !== 'IN_REVIEW') return false;
+    if (userRole === 'COMPANY') return true;
+    if (userRole === 'QC_ADMIN') return true;
+    if (task.subProject?.qcHeadId === userId) return true;
+    return false;
 }

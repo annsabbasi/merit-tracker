@@ -305,3 +305,7 @@
 .logo-company>div img {
   opacity: 100;
 }
+
+img {
+  opacity: 100 !important;
+}

@@ -20,7 +20,9 @@ import {
   Copy,
   Monitor,
   GalleryHorizontal,
-  User, // Added for Profile
+  User,
+  ClipboardCheck,
+  Target, // Added for Profile
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -38,6 +40,8 @@ const navigation = [
   { name: "Manage", href: "/dashboard/manage", icon: Settings },
   { name: "Notifications", href: "/dashboard/notifications", icon: Bell },
   { name: "Agent Details", href: "/dashboard/settings/screen-capture", icon: Monitor },
+  { name: "QC Review", href: "/dashboard/qc-review", icon: ClipboardCheck },
+  { name: "My Tasks", href: "/dashboard/my-tasks", icon: Target },
 ]
 
 export function Sidebar() {
